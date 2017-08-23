@@ -2,12 +2,18 @@ package com.slalom.polly;
 
 import android.content.Context;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Canvas;
+import android.graphics.Paint;
 import android.graphics.SurfaceTexture;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.app.Activity;
 import android.os.Handler;
+import android.util.DisplayMetrics;
 import android.util.Log;
+import android.view.SurfaceHolder;
+import android.view.SurfaceView;
 import android.view.TextureView;
 import android.view.View;
 import android.view.View.OnClickListener;
@@ -15,10 +21,15 @@ import android.view.TextureView.SurfaceTextureListener;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.CompoundButton;
+import android.widget.FrameLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 import android.widget.ToggleButton;
 
+import org.opencv.android.BaseLoaderCallback;
+import org.opencv.android.LoaderCallbackInterface;
+import org.opencv.android.OpenCVLoader;
+import org.opencv.android.Utils;
 import org.opencv.core.*;
 //import org.opencv.core.Mat;
 //import org.opencv.core.MatOfRect;
@@ -27,9 +38,11 @@ import org.opencv.core.*;
 import org.opencv.imgproc.Imgproc;
 import org.opencv.objdetect.CascadeClassifier;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.io.OutputStream;
 
 import dji.common.camera.SettingsDefinitions;
 import dji.common.camera.SystemState;
@@ -48,12 +61,16 @@ import dji.sdk.sdkmanager.DJISDKManager;
 public class MainActivity extends Activity implements TextureView.SurfaceTextureListener, View.OnClickListener {
 
     private static final String TAG = MainActivity.class.getName();
+    private static final Scalar    FACE_RECT_COLOR     = new Scalar(0, 255, 0, 255);
+
     protected VideoFeeder.VideoDataCallback mReceivedVideoDataCallBack = null;
 
     // Codec for video live view
     protected DJICodecManager mCodecManager = null;
 
     protected TextureView mVideoSurface = null;
+    protected SurfaceView mOCVSurfaceView = null;
+    private SurfaceHolder mOCVSurfaceViewHolder = null;
     private Button mCaptureBtn, mShootPhotoModeBtn, mRecordVideoModeBtn;
     private ToggleButton mRecordBtn;
     private TextView recordingTime;
@@ -62,7 +79,24 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
     private CascadeClassifier cascadeClassifier;
     private Mat grayscaleImage;
     private Mat rgbImage;
-    private int absoluteFaceSize;
+    private float mRelativeFaceSize   = 0.2f;
+    private int mAbsoluteFaceSize   = 0;
+    private Paint mPaint;
+
+    private BaseLoaderCallback mLoaderCallback = new BaseLoaderCallback(this) {
+        @Override
+        public void onManagerConnected(int status) {
+            switch (status) {
+                case LoaderCallbackInterface.SUCCESS:
+                    Log.i(TAG, "OpenCV loaded successfully");
+                    initializeOpenCVDependencies();
+                    break;
+                default:
+                    super.onManagerConnected(status);
+                    break;
+            }
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -86,11 +120,15 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
             }
         };
 
+        //NOT NEEDED RIGHT NOW
         Camera camera = PollyApplication.getCameraInstance();
 
         if (camera != null) {
 
             camera.setSystemStateCallback(new SystemState.Callback() {
+                //@Override
+                //public void onCamera
+
                 @Override
                 public void onUpdate(SystemState cameraSystemState) {
                     if (null != cameraSystemState) {
@@ -147,12 +185,10 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
 
             // Load the cascade classifier
             cascadeClassifier = new CascadeClassifier(mCascadeFile.getAbsolutePath());
-        } catch (Exception e) {
-            Log.e("OpenCVActivity", "Error loading cascade", e);
-        }
 
-        // And we are ready to go
-        openCvCameraView.enableView();
+        } catch (Exception e) {
+            Log.e(TAG, "Error loading cascade", e);
+        }
     }
 
     protected void onProductChange() {
@@ -181,6 +217,16 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
     public void onResume() {
         Log.e(TAG, "onResume");
         super.onResume();
+
+        if (!OpenCVLoader.initDebug()) {
+            Log.d(TAG, "Internal OpenCV library not found. Using OpenCV Manager for initialization");
+            OpenCVLoader.initAsync(OpenCVLoader.OPENCV_VERSION_3_0_0, this, mLoaderCallback);
+        } else {
+            Log.d(TAG, "OpenCV library found inside package. Using it!");
+            mLoaderCallback.onManagerConnected(LoaderCallbackInterface.SUCCESS);
+        }
+
+
         initPreviewer();
         onProductChange();
 
@@ -217,16 +263,29 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
     private void initUI() {
         // init mVideoSurface
         mVideoSurface = (TextureView) findViewById(R.id.video_previewer_surface);
+        mOCVSurfaceView = (SurfaceView) findViewById(R.id.ocvideo_surface_view);
 
         recordingTime = (TextView) findViewById(R.id.timer);
         mCaptureBtn = (Button) findViewById(R.id.btn_capture);
         mRecordBtn = (ToggleButton) findViewById(R.id.btn_record);
         mShootPhotoModeBtn = (Button) findViewById(R.id.btn_shoot_photo_mode);
         mRecordVideoModeBtn = (Button) findViewById(R.id.btn_record_video_mode);
+        mPaint = new Paint();
 
         if (null != mVideoSurface) {
             mVideoSurface.setSurfaceTextureListener(this);
         }
+
+        if(null != mOCVSurfaceView) {
+            mOCVSurfaceViewHolder = mOCVSurfaceView.getHolder();
+        }
+
+//        DisplayMetrics displaymetrics = new DisplayMetrics();
+//        getWindowManager().getDefaultDisplay().getMetrics(displaymetrics);
+//        int width = displaymetrics.widthPixels;
+//        int halfScreenWidth = width/2;
+//        mVideoSurface.setLayoutParams(new FrameLayout.LayoutParams(halfScreenWidth, mVideoSurface.getHeight()));
+//        mOCVSurfaceView.setLayoutParams(new FrameLayout.LayoutParams(halfScreenWidth, mOCVSurfaceView.getHeight()));
 
         mCaptureBtn.setOnClickListener(this);
         mRecordBtn.setOnClickListener(this);
@@ -278,9 +337,13 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
     @Override
     public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
         Log.e(TAG, "onSurfaceTextureAvailable");
+        showToast("onSurfaceTextureAvailable");
+
         if (mCodecManager == null) {
             mCodecManager = new DJICodecManager(this, surface, width, height);
         }
+        grayscaleImage = new Mat();
+        rgbImage = new Mat();
     }
 
     @Override
@@ -304,27 +367,70 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
         //video frame is received
         Bitmap bitmap = mVideoSurface.getBitmap();
         rgbImage = new Mat();
+        Utils.bitmapToMat(bitmap, rgbImage);
+        Mat frameMat = detectFacesInFrame(rgbImage);
 
+        Utils.matToBitmap(frameMat, bitmap);
+        DrawToSurface(bitmap);
     }
 
     public Mat detectFacesInFrame(Mat aInputFrame) {
         // Create a grayscale image
         Imgproc.cvtColor(aInputFrame, grayscaleImage, Imgproc.COLOR_RGBA2RGB);
 
+        if (mAbsoluteFaceSize == 0) {
+            int height = grayscaleImage.rows();
+            if (Math.round(height * mRelativeFaceSize) > 0) {
+                mAbsoluteFaceSize = Math.round(height * mRelativeFaceSize);
+            }
+        }
+
         MatOfRect faces = new MatOfRect();
 
         // Use the classifier to detect faces
         if (cascadeClassifier != null) {
             cascadeClassifier.detectMultiScale(grayscaleImage, faces, 1.1, 2, 2,
-                    new Size(absoluteFaceSize, absoluteFaceSize), new Size());
+                    new Size(mAbsoluteFaceSize, mAbsoluteFaceSize), new Size());
         }
 
         // If there are any faces found, draw a rectangle around it
         Rect[] facesArray = faces.toArray();
         for (int i = 0; i <facesArray.length; i++) {
-            Imgproc.rectangle(aInputFrame, facesArray[i].tl(), facesArray[i].br(), new Scalar(0, 255, 0, 255), 3);
+            Imgproc.rectangle(aInputFrame, facesArray[i].tl(), facesArray[i].br(), FACE_RECT_COLOR, 3);
         }
+
         return aInputFrame;
+    }
+
+    private void DrawToSurface(Bitmap bitmap)
+    {
+        Canvas canvas = mOCVSurfaceViewHolder.lockCanvas();
+
+        if (canvas != null)
+        {
+            if(bitmap != null)
+            {
+                canvas.drawBitmap(bitmap,0,0,mPaint);
+            }
+            else {
+                Log.d(TAG, "******************* bitmap is null !!!!!!!!!");
+            }
+            mOCVSurfaceViewHolder.unlockCanvasAndPost(canvas);
+        }
+        else {
+            Log.d(TAG, "******************* canvas is null !!!!!!!!!");
+        }
+    }
+
+    public Bitmap CompressImage(Bitmap bitmap) {
+
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        bitmap.compress(Bitmap.CompressFormat.JPEG, 100, outputStream);
+        byte[] bitmapData = outputStream.toByteArray();
+        Bitmap decodedBitmap = BitmapFactory.decodeByteArray(bitmapData, 0, bitmapData.length);
+        //Bitmap scaledBitmap = Bitmap.createScaledBitmap(decodedBitmap, mOCVSurfaceView.getWidth(), mOCVSurfaceView.getHeight(), true);
+
+        return decodedBitmap;
     }
 
     public void showToast(final String msg) {
@@ -376,6 +482,7 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
 
     // Method for taking photo
     private void captureAction(){
+
         final Camera camera = PollyApplication.getCameraInstance();
         if (camera != null) {
             SettingsDefinitions.ShootPhotoMode photoMode = SettingsDefinitions.ShootPhotoMode.SINGLE; // Set the camera capture mode as Single mode

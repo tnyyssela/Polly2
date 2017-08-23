@@ -96,7 +96,7 @@ public class ConnectionActivity extends Activity implements View.OnClickListener
         mTextProduct = (TextView) findViewById(R.id.text_product_info);
         mBtnOpen = (Button) findViewById(R.id.btn_open);
         mBtnOpen.setOnClickListener(this);
-        //mBtnOpen.setEnabled(false);
+        mBtnOpen.setEnabled(false);
 
     }
 

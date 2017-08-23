@@ -3,14 +3,38 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical">
-    <SurfaceView
-        android:id="@+id/video_surface_view"
+    <!--<ScrollView-->
+        <!--android:layout_width="match_parent"-->
+        <!--android:layout_height="match_parent"-->
+        <!--android:layout_above="@+id/linearLayout">-->
+    <!--<LinearLayout-->
+        <!--android:layout_width="match_parent"-->
+        <!--android:layout_height="match_parent"-->
+        <!--android:orientation="horizontal">-->
+
+    <TextureView
+        android:id="@+id/video_previewer_surface"
         android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentLeft="true"
+        android:layout_toLeftOf="@+id/centerShim"
+        android:layout_above="@+id/linearLayout" />
+    <View
+        android:id="@+id/centerShim"
         android:layout_height="match_parent"
-        android:layout_gravity="center"
-        android:layout_centerHorizontal="true"
+        android:layout_width="0dp"
+        android:visibility="invisible"
+        android:layout_centerHorizontal="true"/>
+    <SurfaceView
+        android:id="@+id/ocvideo_surface_view"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentRight="true"
+        android:layout_toRightOf="@+id/centerShim"
         android:layout_above="@+id/linearLayout" />
 
+    <!--</LinearLayout>-->
+    <!--</ScrollView>-->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

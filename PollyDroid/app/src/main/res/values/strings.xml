@@ -6,4 +6,10 @@
     <string name="product_information">Product Information</string>
     <string name="connection_loose">Status: Not Connected</string>
     <string name="sdk_version">DJI SDK Version: 3.3</string>
+
+    <string name="title_activity_face_recognition">FaceRecognitionActivity</string>
+    <string name="dummy_button">Dummy Button</string>
+    <string name="dummy_content">DUMMY\nCONTENT</string>
+    <string name="btnLiveStream">Live Stream</string>
+    <string name="btnFrames">Frames</string>
 </resources>

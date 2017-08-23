@@ -1,5 +1,7 @@
 package com.slalom.polly;
 
+import android.content.Context;
+import android.graphics.Bitmap;
 import android.graphics.SurfaceTexture;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
@@ -10,11 +12,24 @@ import android.view.TextureView;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.view.TextureView.SurfaceTextureListener;
+import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.CompoundButton;
 import android.widget.TextView;
 import android.widget.Toast;
 import android.widget.ToggleButton;
+
+import org.opencv.core.*;
+//import org.opencv.core.Mat;
+//import org.opencv.core.MatOfRect;
+//import org.opencv.core.Rect;
+//import org.opencv.core.Size;
+import org.opencv.imgproc.Imgproc;
+import org.opencv.objdetect.CascadeClassifier;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
 
 import dji.common.camera.SettingsDefinitions;
 import dji.common.camera.SystemState;
@@ -44,12 +59,17 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
     private TextView recordingTime;
 
     private Handler handler;
+    private CascadeClassifier cascadeClassifier;
+    private Mat grayscaleImage;
+    private Mat rgbImage;
+    private int absoluteFaceSize;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
 
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
         handler = new Handler();
 
@@ -60,13 +80,8 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
 
             @Override
             public void onReceive(byte[] videoBuffer, int size) {
-
-
-                //TODO - Add OpenCV code
-
                 if (mCodecManager != null) {
                     mCodecManager.sendDataToDecoder(videoBuffer, size);
-
                 }
             }
         };
@@ -110,6 +125,34 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
 
         }
 
+    }
+
+    private void initializeOpenCVDependencies() {
+
+        try {
+            // Copy the resource into a temp file so OpenCV can load it
+            InputStream is = getResources().openRawResource(R.raw.lbpcascade_frontalface);
+            File cascadeDir = getDir("cascade", Context.MODE_PRIVATE);
+            File mCascadeFile = new File(cascadeDir, "lbpcascade_frontalface.xml");
+            FileOutputStream os = new FileOutputStream(mCascadeFile);
+
+
+            byte[] buffer = new byte[4096];
+            int bytesRead;
+            while ((bytesRead = is.read(buffer)) != -1) {
+                os.write(buffer, 0, bytesRead);
+            }
+            is.close();
+            os.close();
+
+            // Load the cascade classifier
+            cascadeClassifier = new CascadeClassifier(mCascadeFile.getAbsolutePath());
+        } catch (Exception e) {
+            Log.e("OpenCVActivity", "Error loading cascade", e);
+        }
+
+        // And we are ready to go
+        openCvCameraView.enableView();
     }
 
     protected void onProductChange() {
@@ -258,7 +301,30 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
 
     @Override
     public void onSurfaceTextureUpdated(SurfaceTexture surface) {
-        //TODO: Does this fire when a video frame is received?
+        //video frame is received
+        Bitmap bitmap = mVideoSurface.getBitmap();
+        rgbImage = new Mat();
+
+    }
+
+    public Mat detectFacesInFrame(Mat aInputFrame) {
+        // Create a grayscale image
+        Imgproc.cvtColor(aInputFrame, grayscaleImage, Imgproc.COLOR_RGBA2RGB);
+
+        MatOfRect faces = new MatOfRect();
+
+        // Use the classifier to detect faces
+        if (cascadeClassifier != null) {
+            cascadeClassifier.detectMultiScale(grayscaleImage, faces, 1.1, 2, 2,
+                    new Size(absoluteFaceSize, absoluteFaceSize), new Size());
+        }
+
+        // If there are any faces found, draw a rectangle around it
+        Rect[] facesArray = faces.toArray();
+        for (int i = 0; i <facesArray.length; i++) {
+            Imgproc.rectangle(aInputFrame, facesArray[i].tl(), facesArray[i].br(), new Scalar(0, 255, 0, 255), 3);
+        }
+        return aInputFrame;
     }
 
     public void showToast(final String msg) {

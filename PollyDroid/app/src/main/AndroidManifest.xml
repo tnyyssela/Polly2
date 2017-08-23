@@ -29,7 +29,6 @@
         android:required="true" />
 
     <!-- SDK requirement permission end -->
-
     <application
         android:name=".PollyApplication"
         android:allowBackup="true"
@@ -48,7 +47,7 @@
 
         <activity
             android:name="dji.sdk.sdkmanager.DJIAoaControllerActivity"
-            android:theme="@android:style/Theme.Translucent" >
+            android:theme="@android:style/Theme.Translucent">
             <intent-filter>
                 <action android:name="android.hardware.usb.action.USB_ACCESSORY_ATTACHED" />
             </intent-filter>
@@ -57,22 +56,23 @@
                 android:name="android.hardware.usb.action.USB_ACCESSORY_ATTACHED"
                 android:resource="@xml/accessory_filter" />
         </activity>
-        <service android:name="dji.sdk.sdkmanager.DJIGlobalService" >
-        </service>
+
+        <service android:name="dji.sdk.sdkmanager.DJIGlobalService" />
         <!-- DJI SDK -->
 
-
-        <activity android:name=".ConnectionActivity"
+        <activity
+            android:name=".ConnectionActivity"
             android:screenOrientation="portrait">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
+
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity android:name=".MainActivity"
-            android:screenOrientation="sensorLandscape">
-        </activity>
-
+        <activity
+            android:name=".MainActivity"
+            android:screenOrientation="sensorLandscape" />
+        <activity android:name=".FaceRecognitionActivity"></activity>
     </application>
 
 </manifest>

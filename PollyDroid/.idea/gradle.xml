@@ -11,6 +11,7 @@
             <option value="$PROJECT_DIR$/app" />
             <option value="$PROJECT_DIR$/dJISDKLIB" />
             <option value="$PROJECT_DIR$/dji-uilibrary" />
+            <option value="$PROJECT_DIR$/openCVLibrary330" />
           </set>
         </option>
         <option name="resolveModulePerSourceSet" value="false" />

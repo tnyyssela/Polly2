@@ -3,9 +3,8 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical">
-
-    <TextureView
-        android:id="@+id/video_previewer_surface"
+    <SurfaceView
+        android:id="@+id/video_surface_view"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_gravity="center"

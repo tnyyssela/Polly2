@@ -1,2 +1,3 @@
 include ':app', ':dji-uilibrary'
 include ':dJISDKLIB'
+include ':openCVLibrary330'

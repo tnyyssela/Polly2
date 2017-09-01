@@ -43,5 +43,7 @@ dependencies {
     compile 'com.android.support:design:25.3.1'
     compile 'com.android.support:multidex:1.0.1'
     compile 'com.android.support:support-v4:25.3.1'
+    compile 'com.microsoft.azure.android:azure-storage-android:1.2.0@aar'
+    compile 'com.microsoft.projectoxford:face:1.1.0'
     testCompile 'junit:junit:4.12'
 }

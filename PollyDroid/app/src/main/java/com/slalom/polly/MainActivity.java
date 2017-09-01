@@ -1,30 +1,33 @@
 package com.slalom.polly;
 
+import android.app.PendingIntent;
 import android.content.Context;
+import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.SurfaceTexture;
-import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.app.Activity;
 import android.os.Handler;
-import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.TextureView;
 import android.view.View;
-import android.view.View.OnClickListener;
-import android.view.TextureView.SurfaceTextureListener;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.CompoundButton;
-import android.widget.FrameLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 import android.widget.ToggleButton;
+import com.microsoft.projectoxford.face.FaceServiceClient;
+import com.microsoft.projectoxford.face.FaceServiceRestClient;
+import com.microsoft.projectoxford.face.contract.Candidate;
+import com.microsoft.projectoxford.face.contract.Face;
+import com.microsoft.projectoxford.face.contract.IdentifyResult;
+import com.microsoft.projectoxford.face.contract.Person;
 
 import org.opencv.android.BaseLoaderCallback;
 import org.opencv.android.LoaderCallbackInterface;
@@ -35,14 +38,18 @@ import org.opencv.core.*;
 //import org.opencv.core.MatOfRect;
 //import org.opencv.core.Rect;
 //import org.opencv.core.Size;
+import org.opencv.imgcodecs.Imgcodecs;
 import org.opencv.imgproc.Imgproc;
 import org.opencv.objdetect.CascadeClassifier;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
-import java.io.OutputStream;
+import java.net.URI;
+import java.util.Date;
+import java.util.UUID;
 
 import dji.common.camera.SettingsDefinitions;
 import dji.common.camera.SystemState;
@@ -55,8 +62,6 @@ import dji.sdk.camera.Camera;
 import dji.sdk.camera.VideoFeeder;
 import dji.sdk.codec.DJICodecManager;
 import dji.sdk.useraccount.UserAccountManager;
-
-import dji.sdk.sdkmanager.DJISDKManager;
 
 public class MainActivity extends Activity implements TextureView.SurfaceTextureListener, View.OnClickListener {
 
@@ -83,6 +88,10 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
     private int mAbsoluteFaceSize   = 0;
     private Paint mPaint;
 
+    private int azureThrottleTimeout = 5000;
+    private long timeOfLastAzureRequest = System.currentTimeMillis();
+
+
     private BaseLoaderCallback mLoaderCallback = new BaseLoaderCallback(this) {
         @Override
         public void onManagerConnected(int status) {
@@ -108,6 +117,8 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
         handler = new Handler();
 
         initUI();
+
+        initFacialRecognition();
 
         // The callback for receiving the raw H264 video data for camera live view
         mReceivedVideoDataCallBack = new VideoFeeder.VideoDataCallback() {
@@ -162,6 +173,49 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
             });
 
         }
+
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode == IntentRequestCodes.DetectFace) {
+            switch (resultCode) {
+                case DetectFaceService.INVALID_URL_CODE:
+//                    handleInvalidURL();
+                    break;
+                case DetectFaceService.ERROR_CODE:
+//                    handleError(data);
+                    break;
+                case DetectFaceService.RESULT_CODE:
+                    handleDetectFace(data);
+                    break;
+            }
+            handleDetectFace(data);
+        }
+        if (requestCode == IntentRequestCodes.IdentifyFace) {
+            switch (resultCode) {
+                case IdentifyFaceService.INVALID_URL_CODE:
+//                    handleInvalidURL();
+                    break;
+                case IdentifyFaceService.ERROR_CODE:
+//                    handleError(data);
+                    break;
+                case IdentifyFaceService.RESULT_CODE:
+                    handleIdentifyFace(data);
+                    break;
+            }
+            handleIdentifyFace(data);
+        }
+        super.onActivityResult(requestCode, resultCode, data);
+    }
+
+    private void handleDetectFace(Intent data) {
+
+    }
+
+
+    private void handleIdentifyFace(Intent data) {
+
 
     }
 
@@ -397,9 +451,88 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
         Rect[] facesArray = faces.toArray();
         for (int i = 0; i <facesArray.length; i++) {
             Imgproc.rectangle(aInputFrame, facesArray[i].tl(), facesArray[i].br(), FACE_RECT_COLOR, 3);
+
+            byte[] data = new byte[0];
+            grayscaleImage.get(0, 0, data);
+
+
+            //TODO: ianb - use the services that you made for this express purpose
+            String name = identifyPeople(data);
+            if(name != null) {
+                showToast(name);
+            }
         }
 
         return aInputFrame;
+    }
+
+    //TODO: ianb - persist frame, support multiple people, show location on still image
+    private String identifyPeople(byte[] faceBuffer) {
+        if (System.currentTimeMillis() <= timeOfLastAzureRequest + azureThrottleTimeout) {
+            return null;
+        }
+
+        timeOfLastAzureRequest = System.currentTimeMillis();
+
+        int confidenceThreshold = 0;
+
+        FaceServiceClient faceServiceClient = new FaceServiceRestClient("3776b03f131645b8b7c3f1653dc35ac0");
+
+
+/*
+        URI imageUri = null;
+        try {
+            // Retrieve storage account from connection-string.
+            CloudStorageAccount storageAccount = CloudStorageAccount.parse("DefaultEndpointsProtocol=https;AccountName=friend;AccountKey=My1Ai1m1VrsiQIhJ78cdeKKvTM0HCMix1a1WIMVZrxcXe4jtNIn3cLf+inWiACqMf1i1EOH2QVshf7oTqCKc6A==;EndpointSuffix=core.windows.net");
+
+            // Create the blob client.
+            CloudBlobClient blobClient = storageAccount.createCloudBlobClient();
+
+            // Retrieve reference to a previously created container.
+            CloudBlobContainer container = blobClient.getContainerReference("faces");
+
+            UUID blobId = UUID.randomUUID();
+
+            // Create or overwrite the blob with contents from byte array input.
+            CloudBlockBlob blob = container.getBlockBlobReference(blobId.toString() + ".jpg");
+            blob.upload(new ByteArrayInputStream(faceBuffer), faceBuffer.length);
+
+            imageUri = blob.getUri();
+
+        } catch (Exception e) {
+
+        }
+*/
+        try {
+            Face[] faces = faceServiceClient.detect(new ByteArrayInputStream(faceBuffer), true, true, new FaceServiceClient.FaceAttributeType[0]);
+            UUID[] faceIds = new UUID[faces.length];
+
+            for (int i = 0; i < faces.length; i++) {
+                faceIds[i] = faces[i].faceId;
+            }
+
+            IdentifyResult[] identifyResults = faceServiceClient.identity(IdentifyFaceService.PERSON_GROUP_ID_EXTRA, faceIds, faceIds.length);
+
+            Candidate candidate = identifyResults[0].candidates.get(0);
+
+            if (candidate.confidence > confidenceThreshold) {
+                return faceServiceClient.getPerson(IdentifyFaceService.PERSON_GROUP_ID_EXTRA,candidate.personId).name;
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        return null;
+
+        /*
+        PendingIntent detectFacePendingResult = createPendingResult(
+                0, new Intent(), 0);
+        Intent detectFaceIntent = new Intent(getApplicationContext(), DetectFaceService.class);
+        detectFaceIntent.putExtra(DetectFaceService.PENDING_RESULT_EXTRA, detectFacePendingResult);
+        detectFaceIntent.putExtra(DetectFaceService.FACE_URI_EXTRA, imageUri);
+        startService(detectFaceIntent);
+        */
     }
 
     private void DrawToSurface(Bitmap bitmap)
@@ -546,6 +679,23 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
                 }
             }); // Execute the stopRecordVideo API
         }
+
+    }
+
+    private void initFacialRecognition() {
+        PendingIntent detectFacePendingResult = createPendingResult(
+                0, new Intent(), 0);
+        Intent detectFaceIntent = new Intent(getApplicationContext(), DetectFaceService.class);
+        detectFaceIntent.putExtra(DetectFaceService.PENDING_RESULT_EXTRA, detectFacePendingResult);
+        startService(detectFaceIntent);
+
+
+        PendingIntent identifyFacePendingResult = createPendingResult(
+                0, new Intent(), 0);
+        Intent identifyFaceIntent = new Intent(getApplicationContext(), IdentifyFaceService.class);
+        identifyFaceIntent.putExtra(IdentifyFaceService.PENDING_RESULT_EXTRA, identifyFacePendingResult);
+
+        startService(detectFaceIntent);
 
     }
 }

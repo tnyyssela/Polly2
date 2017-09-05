@@ -1,18 +1,18 @@
 package com.slalom.polly;
 
 import android.app.IntentService;
-import android.app.PendingIntent;
 import android.content.Intent;
+import android.os.Bundle;
+import android.os.ResultReceiver;
 import android.util.Log;
 
-import com.google.gson.JsonSerializer;
+import com.microsoft.projectoxford.face.FaceServiceClient;
+import com.microsoft.projectoxford.face.FaceServiceRestClient;
+import com.microsoft.projectoxford.face.contract.Candidate;
+import com.microsoft.projectoxford.face.contract.IdentifyResult;
+import com.microsoft.projectoxford.face.contract.Person;
 
-import org.json.JSONArray;
-
-import java.io.OutputStream;
-import java.net.HttpURLConnection;
-import java.net.MalformedURLException;
-import java.net.URL;
+import java.util.UUID;
 
 /**
  * Created by Ian on 8/21/2017.
@@ -21,91 +21,111 @@ import java.net.URL;
 public class IdentifyFaceService extends IntentService{
 
     private static final String SUBSCRIPTION_KEY = "3776b03f131645b8b7c3f1653dc35ac0";
-    private static final String SERVICE_LOCATION = "westus";
+
+    public static final String PERSON_GROUP_ID_EXTRA_KEY = "test-polly-group";
+    public static final String FACE_IDS_EXTRA_KEY = "face_ids_extra";
+    public static final String NAME_EXTRA_KEY = "name_extra";
+
+    public static final int SUCCESS_CODE = 0;
+    public static final int ERROR_CODE = 1;
+    public static final int DEBUG_CODE = 2;
+
+    public static FaceServiceClient faceServiceClient = new FaceServiceRestClient(SUBSCRIPTION_KEY);
+
+    public Intent intent;
+
+    private ResultReceiver receiver;
 
     private static final String TAG = IdentifyFaceService.class.getSimpleName();
-
-    public static final String PERSON_GROUP_ID_EXTRA = "test-polly-group";
-    public static final String IDENTIFY_FACE_EXTRA = "identifyFace";
-    public static final String FACE_IDS_EXTRA = "faceIds";
-    public static final String PENDING_RESULT_EXTRA = "pending_result";
-
-    public static final int RESULT_CODE = 0;
-    public static final int INVALID_URL_CODE = 1;
-    public static final int ERROR_CODE = 2;
 
     public IdentifyFaceService() {
         super(TAG);
     }
 
     @Override
-    protected void onHandleIntent(Intent intent) {
-        PendingIntent reply = intent.getParcelableExtra(PENDING_RESULT_EXTRA);
-        String[] faceIds = (String[]) intent.getParcelableArrayListExtra(FACE_IDS_EXTRA).toArray();
-
+    protected void onHandleIntent(Intent handledIntent) {
         try {
-            try {
+            intent = handledIntent;
 
-                Intent result = new Intent();
+            Bundle debugBundle = new Bundle();
 
-                String personGroupResult = identifyFace(PERSON_GROUP_ID_EXTRA, faceIds);
+            receiver = intent.getParcelableExtra(ServiceResultReceiver.RECEIVER_KEY);
 
-                result.putExtra(IDENTIFY_FACE_EXTRA, personGroupResult);
+            debugBundle.putInt(ServiceResultReceiver.SERVICE_CODE_KEY, ServiceCodes.IdentifyFace);
 
-                reply.send(this, RESULT_CODE, result);
-                reply.send(this, RESULT_CODE, result);
-            } catch (MalformedURLException exc) {
-                reply.send(INVALID_URL_CODE);
-            } catch (Exception exc) {
-                // could do better by treating the different sax/xml exceptions individually
-                reply.send(ERROR_CODE);
+            Log.i("IdentifyFace", "0");
+
+
+            String[] faceIds = intent.getStringArrayExtra(FACE_IDS_EXTRA_KEY);
+
+            UUID[] faceIdsInput = new UUID[faceIds.length];
+
+            for (int i = 0; i < faceIds.length; i ++) {
+                faceIdsInput[i] = UUID.fromString(faceIds[i]);
             }
-        } catch (PendingIntent.CanceledException exc) {
-            Log.i(TAG, "reply cancelled", exc);
+
+            Log.i("IdentifyFace", "1");
+
+            IdentifyResult[] identifyResults = faceServiceClient.identity(IdentifyFaceService.PERSON_GROUP_ID_EXTRA_KEY, faceIdsInput, faceIds.length);
+
+            Log.i("IdentifyFace", "2");
+
+            double confidenceThreshold = .5;
+
+            if (identifyResults.length < 1) {
+                return;
+            }
+
+            Log.i("IdentifyFace", "3");
+
+            if (identifyResults[0].candidates.size() < 1) {
+                Log.i("IdentifyFace", identifyResults[0].faceId.toString() + " has no candidates");
+                return;
+            }
+
+            Candidate candidate = identifyResults[0].candidates.get(0);
+
+            String name = null;
+            if (candidate.confidence > confidenceThreshold) {
+                UUID personId = candidate.personId;
+
+                Person person = faceServiceClient.getPerson(IdentifyFaceService.PERSON_GROUP_ID_EXTRA_KEY, personId);
+                name = person.name;
+            }
+
+            Log.i("IdentifyFace", "4");
+
+            getPersonNameCallback(name);
+
+        } catch (Exception e) {
+            Bundle errorBundle = new Bundle();
+            errorBundle.putInt(ServiceResultReceiver.SERVICE_CODE_KEY, ServiceCodes.IdentifyFace);
+            errorBundle.putString("e", e.getMessage());
+            if (receiver != null) {
+                receiver.send(ERROR_CODE, errorBundle);
+            }
+            Log.i("IdentifyFace", e.getMessage());
         }
     }
 
-    private String identifyFace (String personGroupId, String[] faceIds) throws MalformedURLException {
+    private void getPersonNameCallback(String name) {
+        try {
+            Bundle resultBundle = new Bundle();
+            resultBundle.putInt(ServiceResultReceiver.SERVICE_CODE_KEY, ServiceCodes.IdentifyFace);
+            resultBundle.putString(NAME_EXTRA_KEY, name);
 
-        //TODO: ianb - validate personGroupId input
-        // The valid characters for the ID below include numbers, English letters in lower case, '-', and '_'.
-        // The maximum length of the personGroupId is 64.
+            receiver.send(SUCCESS_CODE, resultBundle);
 
-        URL personGroupUrl = new URL("https", SERVICE_LOCATION + ".api.cognitive.microsoft.com/face/v1.0/identify", 80, "");
-
-        try
-        {
-            HttpURLConnection conn = (HttpURLConnection) personGroupUrl.openConnection();
-
-            conn.setRequestMethod("POST");
-            conn.setDoOutput(true);
-
-            JSONArray jArray = new JSONArray(faceIds);
-
-            String requestBody =  "{ \"faceIds\":\"" + jArray.toString() + "\",\"personGroupId\":\"" + personGroupId + "\" }";
-
-            byte[] outputInBytes = requestBody.getBytes("UTF-8");
-            OutputStream os = conn.getOutputStream();
-            os.write( outputInBytes );
-            os.close();
-
-            conn.setRequestProperty("Content-Type", "application/json");
-            conn.setRequestProperty("Ocp-Apim-Subscription-Key", SUBSCRIPTION_KEY);
-
-            int code = conn.getResponseCode();
-            String message = conn.getResponseMessage();
-
-            if (code >= 200 && code < 300) {
-                return message;
+        } catch (Exception e) {
+            Bundle errorBundle = new Bundle();
+            errorBundle.putInt(ServiceResultReceiver.SERVICE_CODE_KEY, ServiceCodes.IdentifyFace);
+            errorBundle.putString("e", e.getMessage());
+            if (receiver != null) {
+                receiver.send(ERROR_CODE, errorBundle);
             }
+            Log.i("IdentifyFace", e.getMessage());
 
         }
-        catch (Exception e)
-        {
-            System.out.println(e.getMessage());
-        }
-
-        return "request failed";
 
     }
 }

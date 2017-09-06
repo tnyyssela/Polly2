@@ -1,27 +1,24 @@
 package com.slalom.polly;
 
 import android.content.Context;
+import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.SurfaceTexture;
-import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.app.Activity;
 import android.os.Handler;
-import android.util.DisplayMetrics;
+import android.os.Parcelable;
 import android.util.Log;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.TextureView;
 import android.view.View;
-import android.view.View.OnClickListener;
-import android.view.TextureView.SurfaceTextureListener;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.CompoundButton;
-import android.widget.FrameLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 import android.widget.ToggleButton;
@@ -35,6 +32,7 @@ import org.opencv.core.*;
 //import org.opencv.core.MatOfRect;
 //import org.opencv.core.Rect;
 //import org.opencv.core.Size;
+import org.opencv.imgcodecs.Imgcodecs;
 import org.opencv.imgproc.Imgproc;
 import org.opencv.objdetect.CascadeClassifier;
 
@@ -42,7 +40,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
-import java.io.OutputStream;
 
 import dji.common.camera.SettingsDefinitions;
 import dji.common.camera.SystemState;
@@ -56,9 +53,7 @@ import dji.sdk.camera.VideoFeeder;
 import dji.sdk.codec.DJICodecManager;
 import dji.sdk.useraccount.UserAccountManager;
 
-import dji.sdk.sdkmanager.DJISDKManager;
-
-public class MainActivity extends Activity implements TextureView.SurfaceTextureListener, View.OnClickListener {
+public class MainActivity extends Activity implements TextureView.SurfaceTextureListener, View.OnClickListener, ServiceResultReceiver.Receiver {
 
     private static final String TAG = MainActivity.class.getName();
     private static final Scalar    FACE_RECT_COLOR     = new Scalar(0, 255, 0, 255);
@@ -83,6 +78,12 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
     private int mAbsoluteFaceSize   = 0;
     private Paint mPaint;
 
+    private int numberOfFacesInFrame = 0;
+    private int azureThrottleTimeout = 5000;
+    private long timeOfLastAzureRequest = System.currentTimeMillis();
+
+    private ServiceResultReceiver serviceReceiver;
+
     private BaseLoaderCallback mLoaderCallback = new BaseLoaderCallback(this) {
         @Override
         public void onManagerConnected(int status) {
@@ -106,6 +107,9 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
         handler = new Handler();
+
+        serviceReceiver = new ServiceResultReceiver(handler);
+        serviceReceiver.setReceiver(this);
 
         initUI();
 
@@ -165,6 +169,97 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
 
     }
 
+    @Override
+    public void onReceiveServiceResult(int serviceCode, int resultCode, Bundle resultData) {
+        try {
+            String e = "";
+            if (serviceCode == ServiceCodes.DetectFace) {
+                switch (resultCode) {
+                    case DetectFaceService.ERROR_CODE:
+                        e = resultData.getString("e");
+                        Log.i("MainActivity", e);
+                        showToast(e);
+                        break;
+                    case DetectFaceService.DEBUG_CODE:
+                        e = resultData.getString("e");
+                        Log.i("MainActivity", e);
+                        showToast(e);
+                        break;
+                    case DetectFaceService.SUCCESS_CODE:
+                        handleDetectFace(resultData);
+                        break;
+                }
+            }
+            if (serviceCode == ServiceCodes.IdentifyFace) {
+                switch (resultCode) {
+                    case IdentifyFaceService.ERROR_CODE:
+                        e = resultData.getString("e");
+                        Log.i("MainActivity", e);
+                        showToast(e);
+                        break;
+                    case IdentifyFaceService.DEBUG_CODE:
+                        e = resultData.getString("e");
+                        Log.i("MainActivity", e);
+                        showToast(e);
+                        break;
+                    case IdentifyFaceService.SUCCESS_CODE:
+                        showToast(resultData.getString("e"));
+                        handleIdentifyFace(resultData);
+                        break;
+                }
+            }
+        } catch (Exception e) {
+            showToast(e.getMessage());
+            Log.i("MainActivity", e.getMessage());
+        }
+
+    }
+
+    private void handleDetectFace(Bundle data) {
+        try {
+            String[] faceIds = data.getStringArray(DetectFaceService.FACES_EXTRA_KEY);
+
+            showToast("faces retrieved");
+            Log.i("MainActivity", "faces retrieved");
+
+
+            if (faceIds == null || faceIds.length < 1) {
+                showToast("no face ids");
+                Log.i("MainActivity", "no face ids");
+                return;
+            }
+
+            showToast("start identify service");
+            Log.i("MainActivity", "start identify service");
+
+            Intent identifyFaceIntent = new Intent(Intent.ACTION_SYNC, null, this, IdentifyFaceService.class);
+            identifyFaceIntent.putExtra(ServiceResultReceiver.RECEIVER_KEY, serviceReceiver);
+            identifyFaceIntent.putExtra(IdentifyFaceService.FACE_IDS_EXTRA_KEY, faceIds);
+
+            startService(identifyFaceIntent);
+
+        } catch (Exception e) {
+            showToast(e.getMessage());
+        }
+
+    }
+
+    private void handleIdentifyFace(Bundle data) {
+        try {
+            Log.i("MainActivity", "handle identify face");
+
+            String name = data.getString(IdentifyFaceService.NAME_EXTRA_KEY);
+            if(name != null) {
+                showToast(name);
+            } else {
+                showToast("name not found");
+            }
+        } catch (Exception e) {
+            showToast(e.getMessage());
+            Log.i("MainActivity", e.getMessage());
+        }
+
+    }
     private void initializeOpenCVDependencies() {
 
         try {
@@ -395,11 +490,55 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
 
         // If there are any faces found, draw a rectangle around it
         Rect[] facesArray = faces.toArray();
-        for (int i = 0; i <facesArray.length; i++) {
+        for (int i = 0; i < facesArray.length; i++) {
             Imgproc.rectangle(aInputFrame, facesArray[i].tl(), facesArray[i].br(), FACE_RECT_COLOR, 3);
+
+            try {
+                //instantiating an empty MatOfByte class
+                MatOfByte matOfByte = new MatOfByte();
+
+                //Converting the Mat object to MatOfByte
+                Imgcodecs.imencode(".jpg", aInputFrame, matOfByte);
+
+                byte[] data = matOfByte.toArray();
+
+//            if (data.length != 0 && facesArray.length != numberOfFacesInFrame) {
+                if (data.length != 0) {
+                    numberOfFacesInFrame = facesArray.length;
+                    identifyPeople(data);
+                }
+            } catch (Exception e) {
+                showToast(e.getMessage());
+            }
+
         }
 
         return aInputFrame;
+    }
+
+    //TODO: ianb - persist frame, support multiple people, show location on still image
+    private void identifyPeople(byte[] faceBuffer) {
+
+        try {
+            if (System.currentTimeMillis() <= timeOfLastAzureRequest + azureThrottleTimeout) {
+                Log.i("MainActivity", "throttled");
+
+                return;
+            }
+
+            timeOfLastAzureRequest = System.currentTimeMillis();
+
+            final Intent detectFaceIntent = new Intent(Intent.ACTION_SYNC, null, this, DetectFaceService.class);
+            detectFaceIntent.putExtra(ServiceResultReceiver.RECEIVER_KEY, serviceReceiver);
+
+            detectFaceIntent.putExtra(DetectFaceService.FACE_BUFFER_EXTRA_KEY, faceBuffer);
+            startService(detectFaceIntent);
+
+        } catch (Exception e) {
+            showToast(e.getMessage());
+            Log.i("MainActivity", e.getMessage());
+
+        }
     }
 
     private void DrawToSurface(Bitmap bitmap)

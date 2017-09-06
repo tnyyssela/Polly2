@@ -20,9 +20,10 @@ public class PollyApplication extends Application
 {
     public static final String FLAG_CONNECTION_CHANGE = "connection_change";
 
+    public Handler mHandler;
+
     private static BaseProduct mProduct;
 
-    public Handler mHandler;
 
     /**
      * This function is used to get the instance of DJIBaseProduct.
@@ -63,6 +64,7 @@ public class PollyApplication extends Application
     public void onCreate() {
         super.onCreate();
         mHandler = new Handler(Looper.getMainLooper());
+
         //This is used to start SDK services and initiate SDK.
         DJISDKManager.getInstance().registerApp(this, mDJISDKManagerCallback);
     }

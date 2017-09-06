@@ -58,6 +58,9 @@
         </activity>
 
         <service android:name="dji.sdk.sdkmanager.DJIGlobalService" />
+        <service android:name=".DetectFaceService" android:exported="false"/>
+        <service android:name=".IdentifyFaceService" android:exported="false"/>
+
         <!-- DJI SDK -->
 
         <activity
@@ -72,7 +75,6 @@
         <activity
             android:name=".MainActivity"
             android:screenOrientation="sensorLandscape" />
-        <activity android:name=".FaceRecognitionActivity"></activity>
     </application>
 
 </manifest>

@@ -22,6 +22,7 @@ public class DetectFaceService extends IntentService{
     private static final String SUBSCRIPTION_KEY = "3776b03f131645b8b7c3f1653dc35ac0";
 
     public static final String FACE_BUFFER_EXTRA_KEY = "faceBufferExtra";
+    public static final String FACE_BUFFER_INDEX_EXTRA_KEY = "faceBufferIndexExtra";
     public static final String FACES_EXTRA_KEY = "facesExtra";
 
 
@@ -35,6 +36,8 @@ public class DetectFaceService extends IntentService{
 
     private ResultReceiver receiver;
 
+    int faceBufferIndex;
+
     private static final String TAG = DetectFaceService.class.getSimpleName();
 
     public DetectFaceService() {
@@ -47,21 +50,15 @@ public class DetectFaceService extends IntentService{
         try {
             intent = handledIntent;
 
-            Log.i("DetectFace", "0");
-
-            Bundle debugBundle = new Bundle();
-
             receiver = intent.getExtras().getParcelable(ServiceResultReceiver.RECEIVER_KEY);
-
-            debugBundle.putInt(ServiceResultReceiver.SERVICE_CODE_KEY, ServiceCodes.DetectFace);
-
-            Log.i("DetectFace", "1");
 
             byte[] faceBuffer = intent.getByteArrayExtra(FACE_BUFFER_EXTRA_KEY);
 
-            Face[] faces = faceServiceClient.detect(new ByteArrayInputStream(faceBuffer), true, true, new FaceServiceClient.FaceAttributeType[0]);
+            faceBufferIndex = intent.getIntExtra(FACE_BUFFER_INDEX_EXTRA_KEY, -1);
 
-            Log.i("DetectFace", "2");
+
+
+            Face[] faces = faceServiceClient.detect(new ByteArrayInputStream(faceBuffer), true, true, new FaceServiceClient.FaceAttributeType[0]);
 
             detectFaceCallback(faces);
         }
@@ -104,6 +101,7 @@ public class DetectFaceService extends IntentService{
             }
 
             bundledExtras.putStringArray(FACES_EXTRA_KEY, faceIds);
+            bundledExtras.putInt(FACE_BUFFER_INDEX_EXTRA_KEY, faceBufferIndex);
 
             receiver.send(SUCCESS_CODE, bundledExtras);
         } catch (Exception e) {

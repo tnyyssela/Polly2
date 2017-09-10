@@ -10,7 +10,6 @@ import android.graphics.SurfaceTexture;
 import android.os.Bundle;
 import android.app.Activity;
 import android.os.Handler;
-import android.os.Parcelable;
 import android.util.Log;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
@@ -190,21 +189,21 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
                         break;
                 }
             }
-            if (serviceCode == ServiceCodes.IdentifyFace) {
+            if (serviceCode == ServiceCodes.IdentifyFacePerson) {
                 switch (resultCode) {
-                    case IdentifyFaceService.ERROR_CODE:
+                    case IdentifyFacePersonService.ERROR_CODE:
                         e = resultData.getString("e");
                         Log.i("MainActivity", e);
                         showToast(e);
                         break;
-                    case IdentifyFaceService.DEBUG_CODE:
+                    case IdentifyFacePersonService.DEBUG_CODE:
                         e = resultData.getString("e");
                         Log.i("MainActivity", e);
                         showToast(e);
                         break;
-                    case IdentifyFaceService.SUCCESS_CODE:
+                    case IdentifyFacePersonService.SUCCESS_CODE:
                         showToast(resultData.getString("e"));
-                        handleIdentifyFace(resultData);
+                        handleIdentifyFacePerson(resultData);
                         break;
                 }
             }
@@ -232,11 +231,11 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
             showToast("start identify service");
             Log.i("MainActivity", "start identify service");
 
-            Intent identifyFaceIntent = new Intent(Intent.ACTION_SYNC, null, this, IdentifyFaceService.class);
-            identifyFaceIntent.putExtra(ServiceResultReceiver.RECEIVER_KEY, serviceReceiver);
-            identifyFaceIntent.putExtra(IdentifyFaceService.FACE_IDS_EXTRA_KEY, faceIds);
+            Intent IdentifyFacePersonIntent = new Intent(Intent.ACTION_SYNC, null, this, IdentifyFacePersonService.class);
+            IdentifyFacePersonIntent.putExtra(ServiceResultReceiver.RECEIVER_KEY, serviceReceiver);
+            IdentifyFacePersonIntent.putExtra(IdentifyFacePersonService.FACE_IDS_EXTRA_KEY, faceIds);
 
-            startService(identifyFaceIntent);
+            startService(IdentifyFacePersonIntent);
 
         } catch (Exception e) {
             showToast(e.getMessage());
@@ -244,11 +243,11 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
 
     }
 
-    private void handleIdentifyFace(Bundle data) {
+    private void handleIdentifyFacePerson(Bundle data) {
         try {
             Log.i("MainActivity", "handle identify face");
 
-            String name = data.getString(IdentifyFaceService.NAME_EXTRA_KEY);
+            String name = data.getString(IdentifyFacePersonService.NAME_EXTRA_KEY);
             if(name != null) {
                 showToast(name);
             } else {

@@ -78,7 +78,7 @@ public class IdentifyFaceGroupService extends IntentService{
     }
 
     private void processGroup(IdentifyResult[] identifyResults, String[] faceIds) {
-        double confidenceThreshold = .80;
+        double confidenceThreshold = .50;
         UUID personId = null;
 
         for (IdentifyResult identifyResult : identifyResults) {

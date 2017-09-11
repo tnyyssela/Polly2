@@ -16,7 +16,13 @@ import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.TextView;
 import android.widget.Toast;
+
+import org.opencv.core.Mat;
+import org.opencv.core.MatOfByte;
+import org.opencv.imgcodecs.Imgcodecs;
+import org.opencv.imgproc.Imgproc;
 
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
@@ -32,13 +38,17 @@ public class ConfigureSearchSubjectActivity extends Activity implements ServiceR
     private ServiceResultReceiver serviceReceiver;
     private Handler handler;
 
-    private Button imagePicker;
-
+    private Button uploadImagesButton;
+    private Button findImagesButton;
+    private Button submitButton;
     private EditText firstNameInput;
     private EditText lastNameInput;
+    private TextView imageCountText;
 
     private ArrayList<byte[]> faceBuffers;
     private Map<String, Integer> faceMap;
+
+    private Uri[] imageUrisToProcess;
 
     private int remainingImagesToProcess = 0;
 
@@ -58,9 +68,11 @@ public class ConfigureSearchSubjectActivity extends Activity implements ServiceR
         firstNameInput = (EditText)findViewById(R.id.input_first_name);
         lastNameInput = (EditText)findViewById(R.id.input_last_name);
 
-        imagePicker = (Button)findViewById(R.id.btn_image_picker);
+        imageCountText = (TextView)findViewById(R.id.text_image_count);
 
-        imagePicker.setOnClickListener(new View.OnClickListener() {
+        uploadImagesButton = (Button)findViewById(R.id.btn_upload_images);
+
+        uploadImagesButton.setOnClickListener(new View.OnClickListener() {
 
             @Override
             public void onClick(View arg0) {
@@ -76,6 +88,44 @@ public class ConfigureSearchSubjectActivity extends Activity implements ServiceR
                 startActivityForResult(Intent.createChooser(intent,"Select Picture"), LOAD_IMAGE_RESULTS);
             }
         });
+
+        findImagesButton = (Button)findViewById(R.id.btn_find_images);
+
+        findImagesButton.setOnClickListener(new View.OnClickListener() {
+
+            @Override
+            public void onClick(View arg0) {
+                if(firstNameInput.getText().length() <= 0 || lastNameInput.getText().length() <= 0) {
+                    showToast("Enter a name.");
+                    return;
+                }
+
+                //FIND IMAGES VIA SOCIAL MEDIA INTEGRATION
+                showToast("Not implemented yet, use upload function instead.");
+            }
+        });
+
+        submitButton = (Button)findViewById(R.id.btn_submit);
+
+        submitButton.setOnClickListener(new View.OnClickListener() {
+
+            @Override
+            public void onClick(View arg0) {
+                if(firstNameInput.getText().length() <= 0 || lastNameInput.getText().length() <= 0) {
+                    showToast("Enter a name.");
+                    return;
+                }
+                if (imageUrisToProcess == null || imageUrisToProcess.length <= 0) {
+                    showToast("Upload or find images to process.");
+                    return;
+                }
+
+                submitImagesForProcessing();
+
+            }
+        });
+
+
     }
 
     @Override
@@ -85,85 +135,93 @@ public class ConfigureSearchSubjectActivity extends Activity implements ServiceR
         if (requestCode == LOAD_IMAGE_RESULTS && resultCode == Activity.RESULT_OK && data != null) {
             try {
                 ClipData clipData = data.getClipData();
+                remainingImagesToProcess = 0;
+                faceBuffers = new ArrayList<>();
+                faceMap = new HashMap<>();
 
-                remainingImagesToProcess = clipData.getItemCount();
+                if (clipData != null) {
+                    remainingImagesToProcess = clipData.getItemCount();
 
-                faceBuffers = new ArrayList<>(remainingImagesToProcess);
+                    imageUrisToProcess = new Uri[remainingImagesToProcess];
 
-                for (int i = 0; i < remainingImagesToProcess; i++) {
-                    Uri imageUri = clipData.getItemAt(i).getUri();
-                    InputStream imageStream = getContentResolver().openInputStream(imageUri);
-
-                    if (imageStream == null) {
-                        return;
+                    for (int i = 0; i < remainingImagesToProcess; i++) {
+                        imageUrisToProcess[i] = clipData.getItemAt(i).getUri();
                     }
 
-                    byte[] faceBuffer = new byte[imageStream.available()];
-
-                    imageStream.read(faceBuffer);
-
-                    Bitmap btm =  BitmapFactory.decodeByteArray(faceBuffer, 0, faceBuffer.length);
-
-                    int imageSizeLimit = 1000000;
-
-                    if (faceBuffer.length > imageSizeLimit) {
-                        float scale = (imageSizeLimit / faceBuffer.length) * .90f;
-
-                        ByteArrayOutputStream stream = new ByteArrayOutputStream();
-                        btm.compress(Bitmap.CompressFormat.JPEG, 100, stream);
-                        faceBuffer = stream.toByteArray();
-
-                        if (faceBuffer.length > imageSizeLimit) {
-                            btm = toGrayscale(btm);
-                            btm.compress(Bitmap.CompressFormat.JPEG, 100, stream);
-                            faceBuffer = stream.toByteArray();
-
-                            if (faceBuffer.length > imageSizeLimit) {
-                                btm = Bitmap.createScaledBitmap(btm, Math.round(btm.getWidth() * scale), Math.round(btm.getHeight() * scale), true);
-                                btm.compress(Bitmap.CompressFormat.JPEG, 100, stream);
-                                faceBuffer = stream.toByteArray();
-
-                                if (faceBuffer.length > imageSizeLimit) {
-                                    Log.i("Upload Image", "File too large");
-                                    return;
-                                }
-                            }
-
-                        }
-
-                    }
-
-
-                    final Intent detectFaceIntent = new Intent(Intent.ACTION_SYNC, null, this, DetectFaceService.class);
-                    detectFaceIntent.putExtra(ServiceResultReceiver.RECEIVER_KEY, serviceReceiver)
-                    .putExtra(DetectFaceService.FACE_BUFFER_EXTRA_KEY, faceBuffer)
-                    .putExtra(DetectFaceService.FACE_BUFFER_INDEX_EXTRA_KEY, i);
-
-                    startService(detectFaceIntent);
-
-                    faceBuffers.add(i, faceBuffer);
+                } else {
+                    remainingImagesToProcess = 1;
+                    imageUrisToProcess = new Uri[remainingImagesToProcess];
+                    imageUrisToProcess[0] = data.getData();
                 }
+
+                imageCountText.setText("" + remainingImagesToProcess);
+
             } catch (Exception e) {
                 Log.i("SearchActivity", e.getMessage());
             }
         }
     }
 
-    private Bitmap toGrayscale(Bitmap bmpOriginal)
-    {
-        int width, height;
-        height = bmpOriginal.getHeight();
-        width = bmpOriginal.getWidth();
+    public void submitImagesForProcessing() {
+        try {
 
-        Bitmap bmpGrayscale = Bitmap.createBitmap(width, height, Bitmap.Config.RGB_565);
-        Canvas c = new Canvas(bmpGrayscale);
-        Paint paint = new Paint();
-        ColorMatrix cm = new ColorMatrix();
-        cm.setSaturation(0);
-        ColorMatrixColorFilter f = new ColorMatrixColorFilter(cm);
-        paint.setColorFilter(f);
-        c.drawBitmap(bmpOriginal, 0, 0, paint);
-        return bmpGrayscale;
+            imageCountText.setText("0");
+
+            if (imageUrisToProcess == null || imageUrisToProcess.length <= 0) {
+                showToast("Upload or find images to process.");
+                return;
+            }
+
+            faceBuffers = new ArrayList<>(remainingImagesToProcess);
+
+            for (int i = 0; i < remainingImagesToProcess; i++) {
+
+                Uri imageUri = imageUrisToProcess[i];
+                InputStream imageStream = getContentResolver().openInputStream(imageUri);
+
+                if (imageStream == null) {
+                    return;
+                }
+
+                byte[] faceBuffer = new byte[imageStream.available()];
+
+                imageStream.read(faceBuffer);
+
+                Bitmap btm = BitmapFactory.decodeByteArray(faceBuffer, 0, faceBuffer.length);
+
+                //TODO: save as temporary file, and limit should be limited to 4mb by azure, not .5mb by intent bundle
+                int imageSizeLimit = 500000;
+
+                if (faceBuffer.length > imageSizeLimit) {
+                    ByteArrayOutputStream stream = new ByteArrayOutputStream();
+
+                    float scale = imageSizeLimit / (float)faceBuffer.length;
+
+                    btm.compress(Bitmap.CompressFormat.JPEG, Math.round(scale * 100), stream);
+
+                    faceBuffer = stream.toByteArray();
+
+                    if (faceBuffer.length > imageSizeLimit) {
+                        Log.i("Upload Image", "File too large");
+                        return;
+                    }
+
+                }
+
+
+                final Intent detectFaceIntent = new Intent(Intent.ACTION_SYNC, null, this, DetectFaceService.class);
+                detectFaceIntent.putExtra(ServiceResultReceiver.RECEIVER_KEY, serviceReceiver)
+                        .putExtra(DetectFaceService.FACE_BUFFER_EXTRA_KEY, faceBuffer)
+                        .putExtra(DetectFaceService.FACE_BUFFER_INDEX_EXTRA_KEY, i);
+
+                startService(detectFaceIntent);
+
+                faceBuffers.add(i, faceBuffer);
+            }
+        } catch (Exception e) {
+            Log.i("SearchActivity", e.getMessage());
+        }
+
     }
 
     @Override
@@ -252,14 +310,23 @@ public class ConfigureSearchSubjectActivity extends Activity implements ServiceR
             Log.i("SearchActivity", "start identify service");
 
             if (remainingImagesToProcess <= 0) {
-                showToast("all photos processed");
+                showToast(faceMap.size() + " face(s) found.");
 
-                Intent groupFacesIntent = new Intent(Intent.ACTION_SYNC, null, this, GroupFacesService.class);
-                groupFacesIntent.putExtra(ServiceResultReceiver.RECEIVER_KEY, serviceReceiver)
-                .putExtra(GroupFacesService.FACE_IDS_EXTRA_KEY, faceMap.keySet().toArray(new String[faceMap.keySet().size()]))
-                .putExtra(GroupFacesService.ONLY_PROCESS_LARGEST_GROUP_EXTRA_KEY, true);
+                if (faceMap.size() > 1) {
+                    Intent groupFacesIntent = new Intent(Intent.ACTION_SYNC, null, this, GroupFacesService.class);
+                    groupFacesIntent.putExtra(ServiceResultReceiver.RECEIVER_KEY, serviceReceiver)
+                            .putExtra(GroupFacesService.FACE_IDS_EXTRA_KEY, faceMap.keySet().toArray(new String[faceMap.keySet().size()]))
+                            .putExtra(GroupFacesService.ONLY_PROCESS_LARGEST_GROUP_EXTRA_KEY, true);
 
-                startService(groupFacesIntent);
+                    startService(groupFacesIntent);
+                } else {
+                    Intent identifyFaceGroupIntent = new Intent(Intent.ACTION_SYNC, null, this, IdentifyFaceGroupService.class);
+                    identifyFaceGroupIntent.putExtra(ServiceResultReceiver.RECEIVER_KEY, serviceReceiver);
+                    identifyFaceGroupIntent.putExtra(IdentifyFaceGroupService.FACE_IDS_EXTRA_KEY, faceIds);
+
+                    startService(identifyFaceGroupIntent);
+                }
+
             }
 
         } catch (Exception e) {
@@ -273,6 +340,7 @@ public class ConfigureSearchSubjectActivity extends Activity implements ServiceR
             String[] faceIds = data.getStringArray(GroupFacesService.FACE_IDS_EXTRA_KEY);
 
             if (faceIds == null || faceIds.length < 1) {
+                showToast("Target face not determined.");
                 return;
             }
 
@@ -297,7 +365,7 @@ public class ConfigureSearchSubjectActivity extends Activity implements ServiceR
 
             if (personId == null) {
                 //ADD PERSON
-                showToast("new person identified");
+                showToast("New person identified.");
 
                 Intent addPersonIntent = new Intent(Intent.ACTION_SYNC, null, this, AddPersonService.class);
                 addPersonIntent.putExtra(ServiceResultReceiver.RECEIVER_KEY, serviceReceiver);

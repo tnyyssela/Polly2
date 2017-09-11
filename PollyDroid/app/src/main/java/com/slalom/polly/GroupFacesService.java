@@ -66,6 +66,15 @@ public class GroupFacesService extends IntentService{
             GroupResult faceGroups = faceServiceClient.group(faceIds);
 
             if (onlyProcessLargestGroup) {
+                if(faceGroups.groups.size() <= 0) {
+                    Bundle errorBundle = new Bundle();
+                    errorBundle.putInt(ServiceResultReceiver.SERVICE_CODE_KEY, ServiceCodes.GroupFaces);
+                    errorBundle.putString("e", "no group identified");
+
+                    receiver.send(ERROR_CODE, errorBundle);
+                    return;
+                }
+
                 int maxLengthIndex = 0;
                 int maxLength = 0;
 

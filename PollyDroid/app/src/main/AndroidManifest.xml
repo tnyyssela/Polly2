@@ -89,6 +89,7 @@
         <service android:name=".IdentifyFacePersonService" android:exported="false"/>
         <service android:name=".AddFaceToPersonService" android:exported="false"/>
         <service android:name=".AddPersonService" android:exported="false"/>
+        <service android:name=".TrainPersonGroupService" android:exported="false"/>
 
     </application>
 

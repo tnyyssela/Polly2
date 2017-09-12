@@ -6,24 +6,18 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.content.res.Resources;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.Handler;
 import android.support.v4.app.ActivityCompat;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
-import android.widget.Toast;
-
-import java.io.InputStream;
-import java.util.UUID;
 
 import dji.sdk.base.BaseProduct;
 import dji.sdk.products.Aircraft;
 
-public class ConnectionActivity extends Activity implements View.OnClickListener /*, ServiceResultReceiver.Receiver*/ {
+public class ConnectionActivity extends Activity implements View.OnClickListener {
 
     private static final String TAG = ConnectionActivity.class.getName();
 
@@ -31,13 +25,10 @@ public class ConnectionActivity extends Activity implements View.OnClickListener
     private TextView mTextProduct;
     private Button mBtnOpen;
 
-//    private ServiceResultReceiver serviceReceiver;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
-//        serviceReceiver = new ServiceResultReceiver(new Handler());
 
         // When the compile and target version is higher than 22, please request the
         // following permissions at runtime to ensure the
@@ -59,8 +50,6 @@ public class ConnectionActivity extends Activity implements View.OnClickListener
 
         initUI();
 
-//        testFaceServices();
-
         // Register the broadcast receiver for receiving the device connection's changes.
         IntentFilter filter = new IntentFilter();
         filter.addAction(PollyApplication.FLAG_CONNECTION_CHANGE);
@@ -71,14 +60,12 @@ public class ConnectionActivity extends Activity implements View.OnClickListener
     public void onResume() {
         Log.e(TAG, "onResume");
         super.onResume();
-//        serviceReceiver.setReceiver(this);
     }
 
     @Override
     public void onPause() {
         Log.e(TAG, "onPause");
         super.onPause();
-//        serviceReceiver.setReceiver(null);
     }
 
     @Override
@@ -147,7 +134,20 @@ public class ConnectionActivity extends Activity implements View.OnClickListener
         switch (v.getId()) {
 
             case R.id.btn_open: {
+
+                String personId = this.getIntent().getStringExtra("personId");
+                String personName = this.getIntent().getStringExtra("personName");
+
+
                 Intent intent = new Intent(this, MainActivity.class);
+
+                if (personId != null) {
+                    intent.putExtra("personId", personId);
+                }
+                if (personName != null) {
+                    intent.putExtra("personName", personName);
+                }
+
                 startActivity(intent);
                 break;
             }
@@ -160,101 +160,4 @@ public class ConnectionActivity extends Activity implements View.OnClickListener
                 break;
         }
     }
-
-
-    /*
-    @Override
-    public void onReceiveServiceResult(int serviceCode, int resultCode, Bundle resultData) {
-
-        if (serviceCode == ServiceCodes.DetectFace) {
-            switch (resultCode) {
-                case DetectFaceService.ERROR_CODE:
-//                    handleError(data);
-                    showToast("detect face error");
-                    break;
-                case DetectFaceService.SUCCESS_CODE:
-                    handleDetectFace(resultData);
-                    break;
-            }
-        }
-        if (serviceCode == ServiceCodes.IdentifyFace) {
-            switch (resultCode) {
-                case IdentifyFacePersonService.ERROR_CODE:
-//                    handleError(data);
-                    showToast("identify face error");
-                    break;
-                case IdentifyFacePersonService.SUCCESS_CODE:
-                    handleIdentifyFace(resultData);
-                    break;
-            }
-        }
-    }
-
-    private void handleDetectFace(Bundle data) {
-        showToast("face(s) detected");
-
-        ParcelableFace[] faces = (ParcelableFace[]) data.getParcelableArray(DetectFaceService.FACES_EXTRA_KEY);
-
-        String[] faceIds = new String[faces.length];
-
-        for (int i = 0; i < faces.length; i++) {
-            faceIds[i] = faces[i].faceId.toString();
-        }
-
-        try {
-            Intent identifyFaceIntent = new Intent(Intent.ACTION_SYNC, null, this, IdentifyFacePersonService.class);
-            identifyFaceIntent.putExtra(ServiceResultReceiver.RECEIVER_KEY, serviceReceiver);
-            identifyFaceIntent.putExtra(IdentifyFacePersonService.FACE_IDS_EXTRA_KEY, faceIds);
-
-            startService(identifyFaceIntent);
-
-            showToast("identifying faces...");
-
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-    }
-
-    private void handleIdentifyFace(Bundle data) {
-        String name = data.getString(IdentifyFacePersonService.NAME_EXTRA_KEY);
-        if(name != null) {
-            showToast(name);
-        } else {
-            showToast("name not found");
-        }
-
-    }
-
-    public void showToast(final String msg) {
-        runOnUiThread(new Runnable() {
-            public void run() {
-                Toast.makeText(ConnectionActivity.this, msg, Toast.LENGTH_SHORT).show();
-            }
-        });
-    }
-
-    private void testFaceServices() {
-        try {
-            Resources res = getResources();
-            InputStream ins = res.openRawResource(R.raw.face);
-
-            byte[] buffer = new byte[188092];
-
-            ins.read(buffer);
-            ins.close();
-
-            Intent detectFaceIntent = new Intent(Intent.ACTION_SYNC, null, this, DetectFaceService.class);
-            detectFaceIntent.putExtra(ServiceResultReceiver.RECEIVER_KEY, serviceReceiver);
-
-            detectFaceIntent.putExtra(DetectFaceService.FACE_BUFFER_EXTRA_KEY, buffer);
-            startService(detectFaceIntent);
-
-            showToast("detecting faces...");
-        }
-        catch(Exception e) {
-            System.out.println(e.getMessage());
-        }
-    }
-    */
 }

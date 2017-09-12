@@ -77,6 +77,9 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
     private int mAbsoluteFaceSize   = 0;
     private Paint mPaint;
 
+    private String personId;
+    private String personName;
+
     private int numberOfFacesInFrame = 0;
     private int azureThrottleTimeout = 5000;
     private long timeOfLastAzureRequest = System.currentTimeMillis();
@@ -104,6 +107,11 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+
+        personId = getIntent().getStringExtra("personId");
+        personName = getIntent().getStringExtra("personName");
+
+        showToast("Searching for " + personName);
 
         handler = new Handler();
 
@@ -248,10 +256,17 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
             Log.i("MainActivity", "handle identify face");
 
             String name = data.getString(IdentifyFacePersonService.NAME_EXTRA_KEY);
-            if(name != null) {
-                showToast(name);
+            String id = data.getString(IdentifyFacePersonService.PERSON_ID_EXTRA_KEY);
+
+            if (id != null && name != null) {
+                if (id == personId) {
+                    beginActiveTracking();
+                    showToast("Tracking " + name + ".");
+                } else {
+                    showToast(name + " found.");
+                }
             } else {
-                showToast("name not found");
+                showToast("Unknown person found.");
             }
         } catch (Exception e) {
             showToast(e.getMessage());
@@ -259,6 +274,11 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
         }
 
     }
+
+    private void beginActiveTracking() {
+
+    }
+
     private void initializeOpenCVDependencies() {
 
         try {
@@ -501,8 +521,7 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
 
                 byte[] data = matOfByte.toArray();
 
-//            if (data.length != 0 && facesArray.length != numberOfFacesInFrame) {
-                if (data.length != 0) {
+            if (data.length != 0 && facesArray.length != numberOfFacesInFrame) {
                     numberOfFacesInFrame = facesArray.length;
                     identifyPeople(data);
                 }

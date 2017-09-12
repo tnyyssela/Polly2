@@ -11,4 +11,5 @@ public class ServiceCodes {
     public static final int IdentifyFacePerson = 1003;
     public static final int AddPerson = 1004;
     public static final int AddFaceToPerson = 1005;
+    public static final int TrainPersonGroup = 1006;
 }

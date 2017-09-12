@@ -9,6 +9,7 @@ import com.microsoft.projectoxford.face.FaceServiceClient;
 import com.microsoft.projectoxford.face.FaceServiceRestClient;
 import com.microsoft.projectoxford.face.contract.AddPersistedFaceResult;
 import com.microsoft.projectoxford.face.contract.CreatePersonResult;
+import com.microsoft.projectoxford.face.contract.Person;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
@@ -25,6 +26,7 @@ public class AddFaceToPersonService extends IntentService{
 
     public static final String PERSON_GROUP_ID = "test-polly-group";
     public static final String PERSON_ID_EXTRA_KEY = "person-id-extra";
+    public static final String PERSON_NAME_EXTRA_KEY = "person-name-extra";
     public static final String FACE_BUFFER_EXTRA_KEY = "face-buffer-extra";
     public static final String FACE_ID_EXTRA_KEY = "face-id-extra";
 
@@ -57,9 +59,11 @@ public class AddFaceToPersonService extends IntentService{
 
             InputStream inputStream = new ByteArrayInputStream(faceBuffer);
 
+            Person getPersonResult = faceServiceClient.getPerson(PERSON_GROUP_ID, UUID.fromString(personId));
+
             AddPersistedFaceResult addFaceResult = faceServiceClient.addPersonFace(PERSON_GROUP_ID, UUID.fromString(personId), inputStream, null, null);
 
-            addFaceCallback(addFaceResult.persistedFaceId.toString());
+            addFaceCallback(addFaceResult.persistedFaceId.toString(), personId, getPersonResult.name);
         }
         catch (Exception e) {
             Bundle errorBundle = new Bundle();
@@ -71,15 +75,16 @@ public class AddFaceToPersonService extends IntentService{
             }
         }
 
-
     }
 
-    private void addFaceCallback(String faceId) {
+    private void addFaceCallback(String faceId, String personId, String personName) {
         try {
             Bundle bundledExtras = new Bundle();
             bundledExtras.putInt(ServiceResultReceiver.SERVICE_CODE_KEY, ServiceCodes.AddFaceToPerson);
 
             bundledExtras.putString(FACE_ID_EXTRA_KEY, faceId);
+            bundledExtras.putString(PERSON_ID_EXTRA_KEY, personId);
+            bundledExtras.putString(PERSON_NAME_EXTRA_KEY, personName);
 
             receiver.send(SUCCESS_CODE, bundledExtras);
 

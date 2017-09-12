@@ -6,6 +6,9 @@ package com.slalom.polly;
 
 public class ServiceCodes {
     public static final int DetectFace = 1000;
-    public static final int IdentifyFace = 1001;
-
+    public static final int IdentifyFaceGroup = 1001;
+    public static final int GroupFaces = 1002;
+    public static final int IdentifyFacePerson = 1003;
+    public static final int AddPerson = 1004;
+    public static final int AddFaceToPerson = 1005;
 }

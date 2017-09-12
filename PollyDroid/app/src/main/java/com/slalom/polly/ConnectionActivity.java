@@ -151,6 +151,11 @@ public class ConnectionActivity extends Activity implements View.OnClickListener
                 startActivity(intent);
                 break;
             }
+            case R.id.btn_find_person: {
+                Intent intent = new Intent(this, ConfigureSearchSubjectActivity.class);
+                startActivity(intent);
+                break;
+            }
             default:
                 break;
         }
@@ -174,11 +179,11 @@ public class ConnectionActivity extends Activity implements View.OnClickListener
         }
         if (serviceCode == ServiceCodes.IdentifyFace) {
             switch (resultCode) {
-                case IdentifyFaceService.ERROR_CODE:
+                case IdentifyFacePersonService.ERROR_CODE:
 //                    handleError(data);
                     showToast("identify face error");
                     break;
-                case IdentifyFaceService.SUCCESS_CODE:
+                case IdentifyFacePersonService.SUCCESS_CODE:
                     handleIdentifyFace(resultData);
                     break;
             }
@@ -197,9 +202,9 @@ public class ConnectionActivity extends Activity implements View.OnClickListener
         }
 
         try {
-            Intent identifyFaceIntent = new Intent(Intent.ACTION_SYNC, null, this, IdentifyFaceService.class);
+            Intent identifyFaceIntent = new Intent(Intent.ACTION_SYNC, null, this, IdentifyFacePersonService.class);
             identifyFaceIntent.putExtra(ServiceResultReceiver.RECEIVER_KEY, serviceReceiver);
-            identifyFaceIntent.putExtra(IdentifyFaceService.FACE_IDS_EXTRA_KEY, faceIds);
+            identifyFaceIntent.putExtra(IdentifyFacePersonService.FACE_IDS_EXTRA_KEY, faceIds);
 
             startService(identifyFaceIntent);
 
@@ -212,7 +217,7 @@ public class ConnectionActivity extends Activity implements View.OnClickListener
     }
 
     private void handleIdentifyFace(Bundle data) {
-        String name = data.getString(IdentifyFaceService.NAME_EXTRA_KEY);
+        String name = data.getString(IdentifyFacePersonService.NAME_EXTRA_KEY);
         if(name != null) {
             showToast(name);
         } else {

@@ -18,13 +18,14 @@ import java.util.UUID;
  * Created by Ian on 8/21/2017.
  */
 
-public class IdentifyFaceService extends IntentService{
+public class IdentifyFacePersonService extends IntentService{
 
     private static final String SUBSCRIPTION_KEY = "3776b03f131645b8b7c3f1653dc35ac0";
 
-    public static final String PERSON_GROUP_ID_EXTRA_KEY = "test-polly-group";
+    public static final String PERSON_GROUP_ID = "test-polly-group";
     public static final String FACE_IDS_EXTRA_KEY = "face_ids_extra";
     public static final String NAME_EXTRA_KEY = "name_extra";
+    public static final String PERSON_ID_EXTRA_KEY = "person-id-extra";
 
     public static final int SUCCESS_CODE = 0;
     public static final int ERROR_CODE = 1;
@@ -36,9 +37,9 @@ public class IdentifyFaceService extends IntentService{
 
     private ResultReceiver receiver;
 
-    private static final String TAG = IdentifyFaceService.class.getSimpleName();
+    private static final String TAG = IdentifyFacePersonService.class.getSimpleName();
 
-    public IdentifyFaceService() {
+    public IdentifyFacePersonService() {
         super(TAG);
     }
 
@@ -47,14 +48,7 @@ public class IdentifyFaceService extends IntentService{
         try {
             intent = handledIntent;
 
-            Bundle debugBundle = new Bundle();
-
             receiver = intent.getParcelableExtra(ServiceResultReceiver.RECEIVER_KEY);
-
-            debugBundle.putInt(ServiceResultReceiver.SERVICE_CODE_KEY, ServiceCodes.IdentifyFace);
-
-            Log.i("IdentifyFace", "0");
-
 
             String[] faceIds = intent.getStringArrayExtra(FACE_IDS_EXTRA_KEY);
 
@@ -64,11 +58,7 @@ public class IdentifyFaceService extends IntentService{
                 faceIdsInput[i] = UUID.fromString(faceIds[i]);
             }
 
-            Log.i("IdentifyFace", "1");
-
-            IdentifyResult[] identifyResults = faceServiceClient.identity(IdentifyFaceService.PERSON_GROUP_ID_EXTRA_KEY, faceIdsInput, faceIds.length);
-
-            Log.i("IdentifyFace", "2");
+            IdentifyResult[] identifyResults = faceServiceClient.identity(IdentifyFacePersonService.PERSON_GROUP_ID, faceIdsInput, faceIds.length);
 
             double confidenceThreshold = .5;
 
@@ -76,54 +66,57 @@ public class IdentifyFaceService extends IntentService{
                 return;
             }
 
-            Log.i("IdentifyFace", "3");
-
             if (identifyResults[0].candidates.size() < 1) {
-                Log.i("IdentifyFace", identifyResults[0].faceId.toString() + " has no candidates");
+                Log.i("IdentifyFacePerson", identifyResults[0].faceId.toString() + " has no candidates");
                 return;
             }
 
             Candidate candidate = identifyResults[0].candidates.get(0);
 
             String name = null;
+            UUID personId = null;
             if (candidate.confidence > confidenceThreshold) {
-                UUID personId = candidate.personId;
+                personId = candidate.personId;
 
-                Person person = faceServiceClient.getPerson(IdentifyFaceService.PERSON_GROUP_ID_EXTRA_KEY, personId);
+                Person person = faceServiceClient.getPerson(IdentifyFacePersonService.PERSON_GROUP_ID, personId);
                 name = person.name;
             }
 
-            Log.i("IdentifyFace", "4");
-
-            getPersonNameCallback(name);
+            String personIdString = null;
+            if (personId != null) {
+                personIdString = personId.toString();
+            }
+            
+            getPersonNameCallback(name, personIdString);
 
         } catch (Exception e) {
             Bundle errorBundle = new Bundle();
-            errorBundle.putInt(ServiceResultReceiver.SERVICE_CODE_KEY, ServiceCodes.IdentifyFace);
+            errorBundle.putInt(ServiceResultReceiver.SERVICE_CODE_KEY, ServiceCodes.IdentifyFacePerson);
             errorBundle.putString("e", e.getMessage());
             if (receiver != null) {
                 receiver.send(ERROR_CODE, errorBundle);
             }
-            Log.i("IdentifyFace", e.getMessage());
+            Log.i("IdentifyFacePerson", e.getMessage());
         }
     }
 
-    private void getPersonNameCallback(String name) {
+    private void getPersonNameCallback(String name, String personId) {
         try {
             Bundle resultBundle = new Bundle();
-            resultBundle.putInt(ServiceResultReceiver.SERVICE_CODE_KEY, ServiceCodes.IdentifyFace);
+            resultBundle.putInt(ServiceResultReceiver.SERVICE_CODE_KEY, ServiceCodes.IdentifyFacePerson);
             resultBundle.putString(NAME_EXTRA_KEY, name);
+            resultBundle.putString(PERSON_ID_EXTRA_KEY, personId);
 
             receiver.send(SUCCESS_CODE, resultBundle);
 
         } catch (Exception e) {
             Bundle errorBundle = new Bundle();
-            errorBundle.putInt(ServiceResultReceiver.SERVICE_CODE_KEY, ServiceCodes.IdentifyFace);
+            errorBundle.putInt(ServiceResultReceiver.SERVICE_CODE_KEY, ServiceCodes.IdentifyFacePerson);
             errorBundle.putString("e", e.getMessage());
             if (receiver != null) {
                 receiver.send(ERROR_CODE, errorBundle);
             }
-            Log.i("IdentifyFace", e.getMessage());
+            Log.i("IdentifyFacePerson", e.getMessage());
 
         }
 

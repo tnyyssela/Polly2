@@ -24,6 +24,7 @@ public class DetectFaceService extends IntentService{
     public static final String FACE_BUFFER_EXTRA_KEY = "faceBufferExtra";
     public static final String FACE_BUFFER_INDEX_EXTRA_KEY = "faceBufferIndexExtra";
     public static final String FACES_EXTRA_KEY = "facesExtra";
+    public static final String FACE_DETAILS_EXTRA_KEY = "faceDetailsExtra";
 
 
     public static final int SUCCESS_CODE = 0;
@@ -101,6 +102,7 @@ public class DetectFaceService extends IntentService{
             }
 
             bundledExtras.putStringArray(FACES_EXTRA_KEY, faceIds);
+            bundledExtras.putParcelableArray(FACE_DETAILS_EXTRA_KEY, parcelableFaces);
             bundledExtras.putInt(FACE_BUFFER_INDEX_EXTRA_KEY, faceBufferIndex);
 
             receiver.send(SUCCESS_CODE, bundledExtras);

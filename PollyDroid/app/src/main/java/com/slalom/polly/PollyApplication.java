@@ -69,29 +69,6 @@ public class PollyApplication extends Application
         return DJISDKManager.getInstance().getMissionControl().getActiveTrackOperator();
     }
 
-    public void startTrackingTarget(RectF target) {
-
-        int targetIndex = 0; // Not sure what this is used for. Perhaps it can keep track of multiple targets at once?
-        ActiveTrackMode mode = ActiveTrackMode.TRACE; // See http://tinyurl.com/yam4uc2v for details about the different ActiveTrackModes
-
-        ActiveTrackMission mission = new ActiveTrackMission(target, targetIndex, mode);
-        getActiveTrackOperator().startTracking(mission, startTrackingTargetCallback);
-    }
-
-    private CommonCallbacks.CompletionCallback startTrackingTargetCallback = new CommonCallbacks.CompletionCallback() {
-        @Override
-        public void onResult(final DJIError error) {
-
-            Handler handler = new Handler(Looper.getMainLooper());
-            handler.post(new Runnable() {
-                @Override
-                public void run() {
-                    Toast.makeText(getApplicationContext(), "Started tracking target : " + error.toString(), Toast.LENGTH_LONG).show();
-                }
-            });
-        }
-    };
-
     @Override
     public void onCreate() {
         super.onCreate();

@@ -5,10 +5,7 @@ import android.content.ClipData;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.graphics.Canvas;
-import android.graphics.ColorMatrix;
-import android.graphics.ColorMatrixColorFilter;
-import android.graphics.Paint;
+
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
@@ -19,31 +16,27 @@ import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import org.opencv.core.Mat;
-import org.opencv.core.MatOfByte;
-import org.opencv.imgcodecs.Imgcodecs;
-import org.opencv.imgproc.Imgproc;
-
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
-public class ConfigureSearchSubjectActivity extends Activity implements ServiceResultReceiver.Receiver {
+public class ConfigureSearchSubjectActivity extends Activity implements View.OnClickListener, ServiceResultReceiver.Receiver {
     //Image loading result to pass to startActivityForResult method
     public static final int LOAD_IMAGE_RESULTS = 1;
-
+    private static final String TAG = "ConfigureSearchActivity";
 
     private ServiceResultReceiver serviceReceiver;
     private Handler handler;
 
-    private Button uploadImagesButton;
-    private Button findImagesButton;
-    private Button submitButton;
+    private Button trackPersonButton;
     private EditText firstNameInput;
     private EditText lastNameInput;
     private TextView imageCountText;
+
+    private String personName;
+    private String personId;
 
     private ArrayList<byte[]> faceBuffers;
     private Map<String, Integer> faceMap;
@@ -70,12 +63,25 @@ public class ConfigureSearchSubjectActivity extends Activity implements ServiceR
 
         imageCountText = (TextView)findViewById(R.id.text_image_count);
 
-        uploadImagesButton = (Button)findViewById(R.id.btn_upload_images);
+        trackPersonButton = (Button)findViewById(R.id.btn_track_person);
 
-        uploadImagesButton.setOnClickListener(new View.OnClickListener() {
+    }
 
-            @Override
-            public void onClick(View arg0) {
+    @Override
+    public void onClick(View v) {
+        switch (v.getId()) {
+
+            case R.id.btn_find_images: {
+                if(firstNameInput.getText().length() <= 0 || lastNameInput.getText().length() <= 0) {
+                    showToast("Enter a name.");
+                    return;
+                }
+
+                //FIND IMAGES VIA SOCIAL MEDIA INTEGRATION
+                showToast("Not implemented yet, use upload function instead.");
+                break;
+            }
+            case R.id.btn_upload_images: {
                 if(firstNameInput.getText().length() <= 0 || lastNameInput.getText().length() <= 0) {
                     showToast("please enter a name");
                     return;
@@ -86,31 +92,9 @@ public class ConfigureSearchSubjectActivity extends Activity implements ServiceR
                 intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
                 intent.setAction(Intent.ACTION_GET_CONTENT);
                 startActivityForResult(Intent.createChooser(intent,"Select Picture"), LOAD_IMAGE_RESULTS);
+                break;
             }
-        });
-
-        findImagesButton = (Button)findViewById(R.id.btn_find_images);
-
-        findImagesButton.setOnClickListener(new View.OnClickListener() {
-
-            @Override
-            public void onClick(View arg0) {
-                if(firstNameInput.getText().length() <= 0 || lastNameInput.getText().length() <= 0) {
-                    showToast("Enter a name.");
-                    return;
-                }
-
-                //FIND IMAGES VIA SOCIAL MEDIA INTEGRATION
-                showToast("Not implemented yet, use upload function instead.");
-            }
-        });
-
-        submitButton = (Button)findViewById(R.id.btn_submit);
-
-        submitButton.setOnClickListener(new View.OnClickListener() {
-
-            @Override
-            public void onClick(View arg0) {
+            case R.id.btn_submit: {
                 if(firstNameInput.getText().length() <= 0 || lastNameInput.getText().length() <= 0) {
                     showToast("Enter a name.");
                     return;
@@ -121,12 +105,41 @@ public class ConfigureSearchSubjectActivity extends Activity implements ServiceR
                 }
 
                 submitImagesForProcessing();
-
+                break;
             }
-        });
+            case R.id.btn_track_person: {
+                if (personName == null || personId == null) {
+                    showToast("Person not identified, upload or find images.");
+                    return;
+                }
 
+                Intent intent = new Intent(this, ConnectionActivity.class);
+                intent.putExtra("personName", personName);
+                intent.putExtra("personId", personId);
 
+                startActivity(intent);
+
+                break;
+            }
+            default:
+                break;
+        }
     }
+
+    @Override
+    public void onResume() {
+        Log.e(TAG, "onResume");
+        super.onResume();
+        serviceReceiver.setReceiver(this);
+    }
+
+    @Override
+    public void onPause() {
+        Log.e(TAG, "onPause");
+        super.onPause();
+        serviceReceiver.setReceiver(null);
+    }
+
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
@@ -157,7 +170,7 @@ public class ConfigureSearchSubjectActivity extends Activity implements ServiceR
                 imageCountText.setText("" + remainingImagesToProcess);
 
             } catch (Exception e) {
-                Log.i("SearchActivity", e.getMessage());
+                Log.i(TAG, e.getMessage());
             }
         }
     }
@@ -219,7 +232,7 @@ public class ConfigureSearchSubjectActivity extends Activity implements ServiceR
                 faceBuffers.add(i, faceBuffer);
             }
         } catch (Exception e) {
-            Log.i("SearchActivity", e.getMessage());
+            Log.i(TAG, e.getMessage());
         }
 
     }
@@ -284,7 +297,7 @@ public class ConfigureSearchSubjectActivity extends Activity implements ServiceR
             }
 
         } catch (Exception e) {
-            Log.i("SearchActivity", e.getMessage());
+            Log.i(TAG, e.getMessage());
         }
 
     }
@@ -300,14 +313,14 @@ public class ConfigureSearchSubjectActivity extends Activity implements ServiceR
                 faceMap.put(faceId, faceBufferIndex);
             }
 
-            Log.i("SearchActivity", "faces retrieved");
+            Log.i(TAG, "faces retrieved");
 
-            if (faceIds == null || faceIds.length < 1) {
-                Log.i("SearchActivity", "no face ids");
+            if (faceIds.length < 1) {
+                Log.i(TAG, "no face ids");
                 return;
             }
 
-            Log.i("SearchActivity", "start identify service");
+            Log.i(TAG, "start identify service");
 
             if (remainingImagesToProcess <= 0) {
                 showToast(faceMap.size() + " face(s) found.");
@@ -330,7 +343,7 @@ public class ConfigureSearchSubjectActivity extends Activity implements ServiceR
             }
 
         } catch (Exception e) {
-            Log.i("SearchActivity", e.getMessage());
+            Log.i(TAG, e.getMessage());
         }
 
     }
@@ -351,7 +364,7 @@ public class ConfigureSearchSubjectActivity extends Activity implements ServiceR
             startService(identifyFaceGroupIntent);
 
         } catch (Exception e) {
-            Log.i("SearchActivity", e.getMessage());
+            Log.i(TAG, e.getMessage());
         }
 
     }
@@ -380,14 +393,11 @@ public class ConfigureSearchSubjectActivity extends Activity implements ServiceR
                 startService(addPersonIntent);
 
             } else {
-                //ADD FACES TO PERSON
                 addFacesToPerson(faceIds, personId);
             }
 
-
-
         } catch (Exception e) {
-            Log.i("SearchActivity", e.getMessage());
+            Log.i(TAG, e.getMessage());
         }
     }
 
@@ -397,12 +407,10 @@ public class ConfigureSearchSubjectActivity extends Activity implements ServiceR
             String personId = data.getString(AddPersonService.PERSON_ID_EXTRA_KEY);
             String[] faceIds = data.getStringArray(AddPersonService.FACE_IDS_EXTRA_KEY);
 
-
             addFacesToPerson(faceIds, personId);
 
-
         } catch (Exception e) {
-            Log.i("SearchActivity", e.getMessage());
+            Log.i(TAG, e.getMessage());
         }
 
     }
@@ -410,9 +418,18 @@ public class ConfigureSearchSubjectActivity extends Activity implements ServiceR
 
     private void handleAddFaceToPerson(Bundle data) {
         try {
-            Log.i("SearchActivity", "Added face to person");
+            Log.i(TAG, "Added face to person");
+            personId = data.getString(AddFaceToPersonService.PERSON_ID_EXTRA_KEY);
+            personName = data.getString(AddFaceToPersonService.PERSON_NAME_EXTRA_KEY);
+
+            trackPersonButton.setText("Track " + personName);
+
+            Intent trainPersonGroupService = new Intent(Intent.ACTION_SYNC, null, this, TrainPersonGroupService.class);
+            trainPersonGroupService.putExtra(ServiceResultReceiver.RECEIVER_KEY, serviceReceiver);
+
+            startService(trainPersonGroupService);
         } catch (Exception e) {
-            Log.i("SearchActivity", e.getMessage());
+            Log.i(TAG, e.getMessage());
         }
     }
 
@@ -429,7 +446,6 @@ public class ConfigureSearchSubjectActivity extends Activity implements ServiceR
             startService(addFaceToPersonIntent);
         }
 
-        showToast("Faces registered to target person");
     }
 
 

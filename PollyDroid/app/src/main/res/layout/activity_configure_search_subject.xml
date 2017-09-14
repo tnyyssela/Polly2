@@ -38,11 +38,12 @@
         android:id="@+id/btn_find_images"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="49dp"
-        android:text="Find Image(s)"
-        android:layout_below="@+id/input_last_name"
         android:layout_alignParentStart="true"
-        android:layout_marginStart="15dp" />
+        android:layout_below="@+id/input_last_name"
+        android:layout_marginStart="15dp"
+        android:layout_marginTop="49dp"
+        android:onClick="onClick"
+        android:text="Find Image(s)" />
 
     <Button
         android:id="@+id/btn_upload_images"
@@ -52,6 +53,7 @@
         android:layout_alignBottom="@+id/btn_find_images"
         android:layout_marginStart="15dp"
         android:layout_toEndOf="@+id/btn_find_images"
+        android:onClick="onClick"
         android:text="Upload Image(s)" />
 
 
@@ -59,29 +61,39 @@
         android:id="@+id/btn_submit"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:onClick="onClick"
         android:text="Submit"
-        android:layout_alignParentBottom="true"
+        android:layout_below="@+id/textView4"
         android:layout_alignStart="@+id/btn_find_images"
-        android:layout_marginBottom="106dp" />
+        android:layout_marginTop="16dp" />
 
     <TextView
         android:id="@+id/textView4"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:text="Image(s)"
+        android:textSize="36sp"
         android:layout_alignBaseline="@+id/text_image_count"
         android:layout_alignBottom="@+id/text_image_count"
-        android:layout_toEndOf="@+id/btn_find_images"
-        android:text="Image(s)"
-        android:textSize="36sp" />
+        android:layout_toEndOf="@+id/btn_find_images" />
 
     <TextView
         android:id="@+id/text_image_count"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_above="@+id/btn_submit"
-        android:layout_alignEnd="@+id/btn_submit"
-        android:layout_marginBottom="46dp"
         android:text="0"
-        android:textSize="36sp" />
+        android:textSize="36sp"
+        android:layout_centerVertical="true"
+        android:layout_alignEnd="@+id/btn_submit" />
+
+    <Button
+        android:id="@+id/btn_track_person"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_centerHorizontal="true"
+        android:layout_marginBottom="55dp"
+        android:onClick="onClick"
+        android:text="Return to connect" />
 
 </RelativeLayout>

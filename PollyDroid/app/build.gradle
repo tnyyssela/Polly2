@@ -45,6 +45,5 @@ dependencies {
     compile 'com.android.support:support-v4:25.3.1'
     compile 'com.microsoft.azure.android:azure-storage-android:1.2.0@aar'
     compile 'com.microsoft.projectoxford:face:1.1.0'
-    compile 'com.facebook.android:facebook-android-sdk:[4,5)'
     testCompile 'junit:junit:4.12'
 }

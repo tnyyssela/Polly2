@@ -6,10 +6,12 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Paint;
+import android.graphics.RectF;
 import android.graphics.SurfaceTexture;
 import android.os.Bundle;
 import android.app.Activity;
 import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
@@ -21,6 +23,8 @@ import android.widget.CompoundButton;
 import android.widget.TextView;
 import android.widget.Toast;
 import android.widget.ToggleButton;
+
+import com.microsoft.projectoxford.face.contract.FaceRectangle;
 
 import org.opencv.android.BaseLoaderCallback;
 import org.opencv.android.LoaderCallbackInterface;
@@ -43,6 +47,10 @@ import java.io.InputStream;
 import dji.common.camera.SettingsDefinitions;
 import dji.common.camera.SystemState;
 import dji.common.error.DJIError;
+import dji.common.mission.activetrack.ActiveTrackMission;
+import dji.common.mission.activetrack.ActiveTrackMissionEvent;
+import dji.common.mission.activetrack.ActiveTrackMode;
+import dji.common.mission.activetrack.ActiveTrackState;
 import dji.common.product.Model;
 import dji.common.useraccount.UserAccountState;
 import dji.common.util.CommonCallbacks;
@@ -50,6 +58,7 @@ import dji.sdk.base.BaseProduct;
 import dji.sdk.camera.Camera;
 import dji.sdk.camera.VideoFeeder;
 import dji.sdk.codec.DJICodecManager;
+import dji.sdk.mission.activetrack.ActiveTrackMissionOperatorListener;
 import dji.sdk.useraccount.UserAccountManager;
 
 public class MainActivity extends Activity implements TextureView.SurfaceTextureListener, View.OnClickListener, ServiceResultReceiver.Receiver {
@@ -77,8 +86,12 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
     private int mAbsoluteFaceSize   = 0;
     private Paint mPaint;
 
+    private String personId;
+    private String personName;
+    private boolean isInTrackingMode;
+
     private int numberOfFacesInFrame = 0;
-    private int azureThrottleTimeout = 5000;
+    private int azureThrottleTimeout = 500;
     private long timeOfLastAzureRequest = System.currentTimeMillis();
 
     private ServiceResultReceiver serviceReceiver;
@@ -104,6 +117,11 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+
+        personId = getIntent().getStringExtra("personId");
+        personName = getIntent().getStringExtra("personName");
+
+        showToast("Searching for " + personName);
 
         handler = new Handler();
 
@@ -202,8 +220,10 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
                         showToast(e);
                         break;
                     case IdentifyFacePersonService.SUCCESS_CODE:
-                        showToast(resultData.getString("e"));
                         handleIdentifyFacePerson(resultData);
+                        break;
+                    case IdentifyFacePersonService.COMPLETE_CODE:
+                        showToast(resultData.getString(IdentifyFacePersonService.NAME_EXTRA_KEY) + ", identified, tracking not initiated.");
                         break;
                 }
             }
@@ -217,6 +237,8 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
     private void handleDetectFace(Bundle data) {
         try {
             String[] faceIds = data.getStringArray(DetectFaceService.FACES_EXTRA_KEY);
+
+            ParcelableFace[] faceDetails = (ParcelableFace[])data.getParcelableArray(DetectFaceService.FACE_DETAILS_EXTRA_KEY);
 
             showToast("faces retrieved");
             Log.i("MainActivity", "faces retrieved");
@@ -234,6 +256,8 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
             Intent IdentifyFacePersonIntent = new Intent(Intent.ACTION_SYNC, null, this, IdentifyFacePersonService.class);
             IdentifyFacePersonIntent.putExtra(ServiceResultReceiver.RECEIVER_KEY, serviceReceiver);
             IdentifyFacePersonIntent.putExtra(IdentifyFacePersonService.FACE_IDS_EXTRA_KEY, faceIds);
+            IdentifyFacePersonIntent.putExtra(IdentifyFacePersonService.PERSON_ID_EXTRA_KEY, personId);
+            IdentifyFacePersonIntent.putExtra(IdentifyFacePersonService.FACE_DETAILS_EXTRA_KEY, faceDetails);
 
             startService(IdentifyFacePersonIntent);
 
@@ -248,10 +272,18 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
             Log.i("MainActivity", "handle identify face");
 
             String name = data.getString(IdentifyFacePersonService.NAME_EXTRA_KEY);
-            if(name != null) {
-                showToast(name);
+            String id = data.getString(IdentifyFacePersonService.PERSON_ID_EXTRA_KEY);
+            ParcelableFace faceDetail = data.getParcelable(IdentifyFacePersonService.FACE_DETAILS_EXTRA_KEY);
+
+            if (id != null && name != null) {
+                if (id == personId) {
+                    beginActiveTracking(faceDetail.faceRectangle);
+                    showToast("Tracking " + name + ".");
+                } else {
+                    showToast(name + " found.");
+                }
             } else {
-                showToast("name not found");
+                showToast("Unknown person found.");
             }
         } catch (Exception e) {
             showToast(e.getMessage());
@@ -259,6 +291,51 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
         }
 
     }
+
+    private void beginActiveTracking(FaceRectangle targetFaceRectangle) {
+        float left = targetFaceRectangle.left;
+        float top = targetFaceRectangle.top;
+        float right = left + targetFaceRectangle.width;
+        float bottom = top + targetFaceRectangle.height;
+
+        ActiveTrackMission activeTrackMission = new ActiveTrackMission(new RectF(left, top, right, bottom), 0, ActiveTrackMode.TRACE);
+
+        PollyApplication.getActiveTrackOperator().startTracking(activeTrackMission, toggleTrackingCallback);
+        PollyApplication.getActiveTrackOperator().addListener(new ActiveTrackMissionOperatorListener() {
+            @Override
+            public void onUpdate(ActiveTrackMissionEvent activeTrackMissionEvent) {
+                ActiveTrackState currentState = activeTrackMissionEvent.getCurrentState();
+
+                if (currentState == ActiveTrackState.DISCONNECTED) {
+                    isInTrackingMode = false;
+                    PollyApplication.getActiveTrackOperator().stopTracking(toggleTrackingCallback);
+                }
+            }
+        });
+    }
+
+    private CommonCallbacks.CompletionCallback toggleTrackingCallback = new CommonCallbacks.CompletionCallback() {
+        @Override
+        public void onResult(final DJIError error) {
+
+            Handler handler = new Handler(Looper.getMainLooper());
+            handler.post(new Runnable() {
+                @Override
+                public void run() {
+                    if (isInTrackingMode) {
+                        showToast("Started tracking target : " + error.getDescription());
+                    } else {
+                        showToast("Stopped tracking target : " + error.getDescription());
+                    }
+                }
+            });
+        }
+    };
+
+    public void stopActiveTrackingCallback() {
+        isInTrackingMode = false;
+    }
+
     private void initializeOpenCVDependencies() {
 
         try {
@@ -459,13 +536,15 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
     @Override
     public void onSurfaceTextureUpdated(SurfaceTexture surface) {
         //video frame is received
-        Bitmap bitmap = mVideoSurface.getBitmap();
-        rgbImage = new Mat();
-        Utils.bitmapToMat(bitmap, rgbImage);
-        Mat frameMat = detectFacesInFrame(rgbImage);
+        if (!isInTrackingMode) {
+            Bitmap bitmap = mVideoSurface.getBitmap();
+            rgbImage = new Mat();
+            Utils.bitmapToMat(bitmap, rgbImage);
+            Mat frameMat = detectFacesInFrame(rgbImage);
 
-        Utils.matToBitmap(frameMat, bitmap);
-        DrawToSurface(bitmap);
+            Utils.matToBitmap(frameMat, bitmap);
+            DrawToSurface(bitmap);
+        }
     }
 
     public Mat detectFacesInFrame(Mat aInputFrame) {
@@ -501,8 +580,7 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
 
                 byte[] data = matOfByte.toArray();
 
-//            if (data.length != 0 && facesArray.length != numberOfFacesInFrame) {
-                if (data.length != 0) {
+            if (data.length != 0 && facesArray.length != numberOfFacesInFrame) {
                     numberOfFacesInFrame = facesArray.length;
                     identifyPeople(data);
                 }

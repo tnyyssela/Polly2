@@ -80,29 +80,28 @@ public class IdentifyFaceGroupService extends IntentService{
     private void processGroup(IdentifyResult[] identifyResults, String[] faceIds) {
         double confidenceThreshold = .50;
         UUID personId = null;
+            for (IdentifyResult identifyResult : identifyResults) {
+                try {
 
-        for (IdentifyResult identifyResult : identifyResults) {
+                for (Candidate candidate : identifyResult.candidates) {
+                    if (identifyResult.candidates.size() < 1) {
+                        // no matching person for face
+                        continue;
+                    }
 
-            if (identifyResult.candidates.size() < 1) {
-                // no matching person for face
-                continue;
-            }
+                    if (candidate.confidence > confidenceThreshold) {
+                        //group person identified
+                        personId = candidate.personId;
+                        break;
+                    }
 
-            for (Candidate candidate : identifyResult.candidates) {
-                if (candidate.confidence > confidenceThreshold) {
-                    //group person identified
-                    personId = candidate.personId;
-                    break;
                 }
 
-            }
+                String personIdString = null;
+                if (personId != null) {
+                    personIdString = personId.toString();
+                }
 
-            String personIdString = null;
-            if (personId != null) {
-                personIdString = personId.toString();
-            }
-
-            try {
                 Bundle resultBundle = new Bundle();
                 resultBundle.putInt(ServiceResultReceiver.SERVICE_CODE_KEY, ServiceCodes.IdentifyFaceGroup);
                 resultBundle.putStringArray(FACE_IDS_EXTRA_KEY, faceIds);
